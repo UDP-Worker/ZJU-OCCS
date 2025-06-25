@@ -35,6 +35,8 @@ def mrr_transfer_function(w: np.ndarray, t: float, k: float, phi_offset: float) 
     j = 1j
     numerator = np.sqrt(1 - k) - t**2 * np.exp(-j * (2 * w + phi_offset))
     denominator = 1 - t**2 * np.sqrt(1 - k) * np.exp(-j * (2 * w + phi_offset))
+    eps = 1e-12
+    denominator = np.where(np.abs(denominator) < eps, eps + 0j, denominator)
     return numerator / denominator
 
 
