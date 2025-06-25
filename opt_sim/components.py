@@ -33,10 +33,12 @@ def phase_shifter_matrix(phi_t: float, phi_b: float) -> np.ndarray:
 def mrr_transfer_function(w: np.ndarray, t: float, k: float, phi_offset: float) -> np.ndarray:
     """微环谐振器 (MRR) 传输函数."""
     j = 1j
+    k = np.clip(k, 0.0, 1.0)
     numerator = np.sqrt(1 - k) - t**2 * np.exp(-j * (2 * w + phi_offset))
     denominator = 1 - t**2 * np.sqrt(1 - k) * np.exp(-j * (2 * w + phi_offset))
-    denominator += 1e-12  # 避免分母为零导致 NaN
-    return numerator / denominator
+    with np.errstate(divide="ignore", invalid="ignore"):
+        result = np.divide(numerator, denominator, out=np.full_like(numerator, np.nan), where=np.abs(denominator) > 1e-12)
+    return result
 
 
 def delay_line(w: np.ndarray, t: float, delay: float, phi_c: float) -> np.ndarray:

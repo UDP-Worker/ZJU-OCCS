@@ -191,14 +191,22 @@ def optimize_params_sgd(
     (target_spectrum, frequency_f, t, w_range, H1, H3, n_ku, m_kl) = args
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    params = torch.rand(len(bounds), dtype=torch.float64, device=device, requires_grad=True)
+    # 在合理区间附近初始化，避免初始值过于极端
+    init = 0.5 + 0.1 * torch.randn(len(bounds), dtype=torch.float64, device=device)
+    params = init.clamp(0.0, 1.0).detach().clone().requires_grad_(True)
 
     optimizer = torch.optim.Adam([params], lr=0.05)
+
+    def _progress_bar(iter_idx: int) -> None:
+        bar_len = 30
+        filled = int(bar_len * (iter_idx + 1) / maxiter)
+        bar = "#" * filled + "-" * (bar_len - filled)
+        print(f"\r[{bar}] {iter_idx + 1}/{maxiter}", end="")
 
     best_loss = float("inf")
     best_params = params.detach().clone()
 
-    for _ in range(maxiter):
+    for i in range(maxiter):
         optimizer.zero_grad()
         loss = objective_function_torch(
             params,
@@ -224,4 +232,9 @@ def optimize_params_sgd(
             best_loss = loss.item()
             best_params = params.detach().clone()
 
+        _progress_bar(i)
+
+        if best_loss < 1e-8:
+            break
+    print()
     return SimpleNamespace(x=best_params.cpu().numpy())
