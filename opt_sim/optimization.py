@@ -4,6 +4,11 @@ import numpy as np
 from types import SimpleNamespace
 
 try:
+    from tqdm.auto import tqdm
+except Exception:  # pragma: no cover - tqdm may be unavailable
+    tqdm = None
+
+try:
     from scipy.optimize import differential_evolution
 except Exception:  # pragma: no cover - SciPy may be unavailable
     differential_evolution = None
@@ -197,16 +202,15 @@ def optimize_params_sgd(
 
     optimizer = torch.optim.Adam([params], lr=0.05)
 
-    def _progress_bar(iter_idx: int) -> None:
-        bar_len = 30
-        filled = int(bar_len * (iter_idx + 1) / maxiter)
-        bar = "#" * filled + "-" * (bar_len - filled)
-        print(f"\r[{bar}] {iter_idx + 1}/{maxiter}", end="")
+    if tqdm is not None:
+        progress_iter = tqdm(range(maxiter), desc="SGD", leave=False)
+    else:
+        progress_iter = range(maxiter)
 
     best_loss = float("inf")
     best_params = params.detach().clone()
 
-    for i in range(maxiter):
+    for i in progress_iter:
         optimizer.zero_grad()
         loss = objective_function_torch(
             params,
@@ -232,9 +236,14 @@ def optimize_params_sgd(
             best_loss = loss.item()
             best_params = params.detach().clone()
 
-        _progress_bar(i)
+        if tqdm is not None:
+            progress_iter.set_postfix(loss=f"{best_loss:.4e}")
 
         if best_loss < 1e-8:
             break
-    print()
+
+    if tqdm is not None:
+        progress_iter.close()
+    else:
+        print()
     return SimpleNamespace(x=best_params.cpu().numpy())
