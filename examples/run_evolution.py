@@ -61,3 +61,25 @@ if __name__ == "__main__":
     for i in range(m_kl):
         print(f"  kl{i+1} = {best_params[n_ku + i]:.4f}")
 
+    # 绘制 target_spectrum 与 final_spectrum
+    import matplotlib.pyplot as plt
+
+    plt.figure()
+    plt.plot(
+        frequency_f,
+        target_spectrum,
+        label='Ideal Reference Box-Filter',
+        linestyle='--',
+        linewidth=2.5,
+        color='red'
+    )
+    #plt.plot(frequency_f, 20 * np.log10(np.abs(target_spectrum)), label='Target Spectrum (dB)')
+    plt.plot(frequency_f, final_spectrum, label='Final Spectrum (dB)')
+    plt.xlabel('Frequency (Hz)')
+    plt.ylabel('Magnitude (dB)')
+    plt.title('Target vs Final Spectrum')
+    plt.legend()
+    plt.grid(True)
+    plt.tight_layout()
+    plt.show()
+
