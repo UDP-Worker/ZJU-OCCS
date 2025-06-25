@@ -34,6 +34,7 @@ def objective_function(
     """
     # 得到被优化结构的实际响应（dB）
     simulated_db = optical_simulation(params, t, w_range, H1, H3, n_ku, m_kl)
+    simulated_db = np.clip(simulated_db, -200.0, 200.0)
 
     # 按 “目标响应的最大值” 自动划分通带 / 阻带
     #    这里假设目标在通带全部取同一峰值（典型设置 0 dB）
@@ -88,6 +89,7 @@ def mrr_transfer_function_torch(w: "torch.Tensor", t: float, k: "torch.Tensor", 
     j = 1j
     numerator = torch.sqrt(1 - k) - t ** 2 * torch.exp(-j * (2 * w + phi_offset))
     denominator = 1 - t ** 2 * torch.sqrt(1 - k) * torch.exp(-j * (2 * w + phi_offset))
+    denominator = denominator + 1e-12  # 避免分母为零
     return numerator / denominator
 
 
@@ -135,7 +137,9 @@ def optical_simulation_torch(
     H_final = H1_t.unsqueeze(0).matmul(H2_stack).matmul(H3_t.unsqueeze(0))
     H11 = H_final[:, 0, 0]
 
-    return 20 * torch.log10(torch.abs(H11))
+    magnitude = torch.abs(H11)
+    magnitude = torch.clamp(magnitude, min=1e-12)
+    return 20 * torch.log10(magnitude)
 
 
 def objective_function_torch(
@@ -151,6 +155,7 @@ def objective_function_torch(
 ) -> "torch.Tensor":
     target = torch.tensor(target_spectrum_db, dtype=torch.float64, device=params.device)
     simulated_db = optical_simulation_torch(params, t, w_range, H1, H3, n_ku, m_kl)
+    simulated_db = torch.clamp(simulated_db, min=-200.0, max=200.0)
 
     pb_level = torch.max(target)
     passband_mask = torch.isclose(target, pb_level, atol=1e-6)
@@ -180,7 +185,7 @@ def optimize_params_sgd(
     maxiter: int = 300,
     popsize: int = 20,
 ):
-    """使用随机梯度下降优化参数，接口与 :func:`optimize_params` 相同."""
+    """基于 Adam 的梯度下降优化参数，接口与 :func:`optimize_params` 相同."""
     _ensure_torch()
 
     (target_spectrum, frequency_f, t, w_range, H1, H3, n_ku, m_kl) = args
@@ -188,7 +193,7 @@ def optimize_params_sgd(
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     params = torch.rand(len(bounds), dtype=torch.float64, device=device, requires_grad=True)
 
-    optimizer = torch.optim.SGD([params], lr=0.1)
+    optimizer = torch.optim.Adam([params], lr=0.05)
 
     best_loss = float("inf")
     best_params = params.detach().clone()
@@ -206,12 +211,14 @@ def optimize_params_sgd(
             n_ku,
             m_kl,
         )
+        if torch.isnan(loss):
+            break
         loss.backward()
         optimizer.step()
 
         with torch.no_grad():
             for idx, (low, high) in enumerate(bounds):
-                params[idx].clamp_(low, high)
+                params[idx].clamp_(low, high)  # 投影回参数范围
 
         if loss.item() < best_loss:
             best_loss = loss.item()

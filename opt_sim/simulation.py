@@ -44,7 +44,9 @@ def optical_simulation(
     H_final = H1 @ H2_stack @ H3
     H11 = H_final[:, 0, 0]
 
-    return 20 * np.log10(np.abs(H11))
+    magnitude = np.abs(H11)
+    magnitude = np.clip(magnitude, 1e-12, None)
+    return 20 * np.log10(magnitude)
 
 
 __all__ = [
