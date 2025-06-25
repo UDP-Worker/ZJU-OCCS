@@ -4,6 +4,11 @@ import numpy as np
 from types import SimpleNamespace
 
 try:
+    from tqdm.auto import tqdm
+except Exception:  # pragma: no cover - tqdm may be unavailable
+    tqdm = None
+
+try:
     from scipy.optimize import differential_evolution
 except Exception:  # pragma: no cover - SciPy may be unavailable
     differential_evolution = None
@@ -191,14 +196,21 @@ def optimize_params_sgd(
     (target_spectrum, frequency_f, t, w_range, H1, H3, n_ku, m_kl) = args
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    params = torch.rand(len(bounds), dtype=torch.float64, device=device, requires_grad=True)
+    # 在合理区间附近初始化，避免初始值过于极端
+    init = 0.5 + 0.1 * torch.randn(len(bounds), dtype=torch.float64, device=device)
+    params = init.clamp(0.0, 1.0).detach().clone().requires_grad_(True)
 
     optimizer = torch.optim.Adam([params], lr=0.05)
+
+    if tqdm is not None:
+        progress_iter = tqdm(range(maxiter), desc="SGD", leave=False)
+    else:
+        progress_iter = range(maxiter)
 
     best_loss = float("inf")
     best_params = params.detach().clone()
 
-    for _ in range(maxiter):
+    for i in progress_iter:
         optimizer.zero_grad()
         loss = objective_function_torch(
             params,
@@ -224,4 +236,14 @@ def optimize_params_sgd(
             best_loss = loss.item()
             best_params = params.detach().clone()
 
+        if tqdm is not None:
+            progress_iter.set_postfix(loss=f"{best_loss:.4e}")
+
+        if best_loss < 1e-8:
+            break
+
+    if tqdm is not None:
+        progress_iter.close()
+    else:
+        print()
     return SimpleNamespace(x=best_params.cpu().numpy())
