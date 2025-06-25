@@ -9,7 +9,7 @@ from .components import (
 )
 from .reference import create_reference_box_filter
 from .simulation import optical_simulation
-from .optimization import objective_function, optimize_params
+from .optimization import objective_function, optimize_params, optimize_params_sgd
 
 __all__ = [
     "tunable_mzi_in",
@@ -21,5 +21,6 @@ __all__ = [
     "optical_simulation",
     "objective_function",
     "optimize_params",
+    "optimize_params_sgd",
 ]
 
