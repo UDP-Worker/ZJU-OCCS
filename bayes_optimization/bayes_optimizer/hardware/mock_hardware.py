@@ -18,4 +18,6 @@ class MockOSA:
 def apply_voltages(volts: np.ndarray) -> None:
     MockOSA.current_volts = volts
 
-MockOSA.current_volts = np.zeros(1)
+from .. import config
+
+MockOSA.current_volts = np.zeros(config.NUM_CHANNELS)
