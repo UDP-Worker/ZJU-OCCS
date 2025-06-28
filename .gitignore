@@ -1,3 +1,5 @@
 __pycache__/
 bayes_optimization/ui/frontend/node_modules/
 bayes_optimization/ui/frontend/.next/
+bayes_optimization/ui/frontend/out/
+
