@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8" />
+<title>参数寻优界面</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@shadcn/ui@0.3.0/dist/shadcn-ui.min.css" />
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body class="p-4">
+<h1 class="text-2xl font-bold mb-4">光学滤波器参数寻优</h1>
+<button id="run" class="btn btn-primary">开始优化</button>
+<pre id="result" class="mt-4"></pre>
+<canvas id="chart" width="600" height="400"></canvas>
+<script>
+document.getElementById('run').onclick = async () => {
+  const resEl = document.getElementById('result');
+  resEl.textContent = '优化中...';
+  const resp = await fetch('/optimize', {method: 'POST'});
+  const data = await resp.json();
+  resEl.textContent = `最优电压: ${data.voltages.map(v=>v.toFixed(3)).join(', ')}\n损失: ${data.loss.toFixed(6)}`;
+  const ctx = document.getElementById('chart').getContext('2d');
+  new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: data.wavelengths,
+      datasets: [
+        {label: '理想波形', data: data.ideal, borderColor: 'blue', fill: false},
+        {label: '优化结果', data: data.response, borderColor: 'red', fill: false}
+      ]
+    },
+    options: {responsive: true}
+  });
+};
+</script>
+</body>
+</html>
