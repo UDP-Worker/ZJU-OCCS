@@ -48,10 +48,15 @@ async function refreshStatus() {
   const data = await resp.json();
   const state = data.connected ? '已连接' : '未连接';
   document.getElementById('status').textContent = `当前模式: ${data.mode} (${state}), 电极数: ${data.num_channels}`;
+  document.getElementById('modeSelect').value = data.mode;
   document.getElementById('numChannels').value = data.num_channels;
   if (data.voltages) {
     buildTable(data.voltages, data.manual || data.voltages);
   }
+  const disable = data.mode === 'real' && !data.connected;
+  document.getElementById('manual').disabled = disable;
+  document.getElementById('run').disabled = disable;
+  document.getElementById('setChannels').disabled = disable;
 }
 
 document.getElementById('modeSelect').onchange = async (e) => {

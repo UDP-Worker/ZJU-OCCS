@@ -53,6 +53,6 @@ def test_real_mode_requires_connection():
     r = client.post("/set_mode", json={"mode": "real"})
     assert r.json()["mode"] == "real"
     assert not r.json()["connected"]
-    assert client.post("/calibrate").status_code == 500
-    assert client.post("/optimize").status_code == 500
-    assert client.post("/manual", json={"voltages": [0.0]}).status_code == 500
+    assert client.post("/calibrate").status_code == 400
+    assert client.post("/optimize").status_code == 400
+    assert client.post("/manual", json={"voltages": [0.0]}).status_code == 400

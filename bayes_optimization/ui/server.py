@@ -87,7 +87,7 @@ async def upload_waveform(file: UploadFile = File(...)):
 def run_calibrate():
     global CALIBRATION
     if CURRENT_MODE == "real" and not HARDWARE_CONNECTED:
-        raise HTTPException(status_code=500, detail="hardware not connected")
+        raise HTTPException(status_code=400, detail="hardware not connected")
     J = calibrator.measure_jacobian()
     n, mat = calibrator.compress_modes(J)
     CALIBRATION = {"modes": n, "matrix": mat.tolist()}
@@ -110,12 +110,12 @@ def manual_adjust(data: dict):
     volts = np.array(data.get("voltages", []), dtype=float)
     if CURRENT_MODE == "real":
         if not HARDWARE_CONNECTED:
-            raise HTTPException(status_code=500, detail="hardware not connected")
+            raise HTTPException(status_code=400, detail="hardware not connected")
         try:
             hardware.apply(volts)
             w, resp = hardware.read_spectrum()
         except Exception as e:
-            raise HTTPException(status_code=500, detail=str(e))
+            raise HTTPException(status_code=400, detail=str(e))
     else:
         w, resp = optical_chip.response(volts)
     global MANUAL_VOLTAGES
@@ -131,7 +131,7 @@ def manual_adjust(data: dict):
 @app.post("/optimize")
 def run_optimize():
     if CURRENT_MODE == "real" and not HARDWARE_CONNECTED:
-        raise HTTPException(status_code=500, detail="hardware not connected")
+        raise HTTPException(status_code=400, detail="hardware not connected")
     num_ch = config.NUM_CHANNELS
     bounds = np.tile(config.V_RANGE, (num_ch, 1))
     start = np.full(num_ch, sum(config.V_RANGE) / 2)
@@ -144,14 +144,14 @@ def run_optimize():
         refined = spsa.spsa_refine(bo_res["best_x"], loss_fn, a0=0.5, c0=0.1, steps=config.SPSA_STEPS)
         final_loss = loss_fn(refined)
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e))
 
     if CURRENT_MODE == "real":
         try:
             hardware.apply(refined)
             w, final_resp = hardware.read_spectrum()
         except Exception as e:
-            raise HTTPException(status_code=500, detail=str(e))
+            raise HTTPException(status_code=400, detail=str(e))
     else:
         w, final_resp = optical_chip.response(refined)
     ideal = optical_chip._IDEAL_RESPONSE
