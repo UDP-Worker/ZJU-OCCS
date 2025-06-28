@@ -11,3 +11,5 @@ def test_simulate_response_shape():
     assert resp.shape == _IDEAL_RESPONSE.shape
     assert w.shape == _IDEAL_RESPONSE.shape
     assert np.all(np.isfinite(resp))
+    # zero voltages should not perfectly match the target waveform
+    assert not np.allclose(resp, _IDEAL_RESPONSE)
