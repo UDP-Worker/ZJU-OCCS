@@ -29,9 +29,9 @@ def test_large_channel_optimization():
     """Optimization should still work with many channels."""
     num_ch = 32
     bounds = np.tile([[0.0, 2.0]], (num_ch, 1))
-    start = np.full(num_ch, 1.0)
+    start = np.zeros(num_ch)
     bo = BayesOptimizer(GaussianProcess(), expected_improvement, bounds)
     res = bo.optimize(start, loss_fn, steps=15)
     refined = spsa_refine(res["best_x"], loss_fn, a0=0.5, c0=0.1, steps=80)
     final_loss = loss_fn(refined)
-    assert final_loss < 0.05
+    assert final_loss < 0.02
