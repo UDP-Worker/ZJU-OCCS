@@ -30,16 +30,13 @@
   <button id="uploadWave" class="btn">上传</button>
 </div>
 
-<div class="mb-2">
-  <label>当前电压:</label>
-  <textarea id="curVoltages" rows="2" class="textarea" readonly></textarea>
-</div>
-
-<div class="mb-2">
-  <label>手动电压:</label>
-  <textarea id="voltages" rows="2" class="textarea"></textarea>
-  <button id="manual" class="btn">下发并查看</button>
-</div>
+<table class="table mb-2" id="voltageTable">
+  <thead>
+    <tr><th>通道</th><th>当前电压</th><th>手动电压</th></tr>
+  </thead>
+  <tbody id="voltBody"></tbody>
+</table>
+<button id="manual" class="btn mb-2">下发并查看</button>
 
 <button id="run" class="btn btn-primary">开始优化</button>
 <pre id="result" class="mt-4"></pre>
@@ -53,10 +50,7 @@ async function refreshStatus() {
   document.getElementById('status').textContent = `当前模式: ${data.mode} (${state}), 电极数: ${data.num_channels}`;
   document.getElementById('numChannels').value = data.num_channels;
   if (data.voltages) {
-    document.getElementById('curVoltages').value = data.voltages.join(', ');
-  }
-  if (data.manual) {
-    document.getElementById('voltages').value = data.manual.join(', ');
+    buildTable(data.voltages, data.manual || data.voltages);
   }
 }
 
@@ -69,8 +63,7 @@ document.getElementById('setChannels').onclick = async () => {
   const n = parseInt(document.getElementById('numChannels').value);
   await fetch('/set_channels', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({num_channels:n})});
   await fetch('/calibrate', {method:'POST'});
-  document.getElementById('voltages').value = Array(n).fill(0).join(', ');
-  document.getElementById('curVoltages').value = Array(n).fill(0).join(', ');
+  buildTable(Array(n).fill(0), Array(n).fill(0));
   refreshStatus();
 };
 
@@ -92,14 +85,23 @@ function drawChart(w, ideal, resp){
   });
 }
 
+function buildTable(cur, manual){
+  const body = document.getElementById('voltBody');
+  body.innerHTML = '';
+  for(let i=0;i<cur.length;i++){
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td>${i+1}</td><td>${cur[i].toFixed(3)}</td><td><input type="number" class="input w-24" value="${manual[i].toFixed(3)}"/></td>`;
+    body.appendChild(tr);
+  }
+}
+
 document.getElementById('manual').onclick = async () => {
-  const vols = document.getElementById('voltages').value.split(',').map(v=>parseFloat(v.trim()));
+  const inputs = document.querySelectorAll('#voltBody input');
+  const vols = Array.from(inputs).map(inp=>parseFloat(inp.value));
   const resp = await fetch('/manual', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({voltages:vols})});
   const data = await resp.json();
   drawChart(data.wavelengths, data.ideal, data.response);
-  if (data.voltages) {
-    document.getElementById('voltages').value = data.voltages.join(', ');
-  }
+  if (data.voltages) buildTable(data.voltages, data.voltages);
   refreshStatus();
 };
 
@@ -110,9 +112,8 @@ document.getElementById('run').onclick = async () => {
   const data = await resp.json();
   resEl.textContent = `最优电压: ${data.voltages.map(v=>v.toFixed(3)).join(', ')}\n损失: ${data.loss.toFixed(6)}`;
   drawChart(data.wavelengths, data.ideal, data.response);
+  buildTable(data.voltages, data.voltages);
   refreshStatus();
-  document.getElementById('voltages').value = data.voltages.join(', ');
-  document.getElementById('curVoltages').value = data.voltages.join(', ');
 };
 
 refreshStatus();

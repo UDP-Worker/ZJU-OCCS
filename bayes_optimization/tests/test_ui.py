@@ -46,3 +46,13 @@ def test_visual_workflow():
     vols2[0] += 0.1
     resp = client.post("/manual", json={"voltages": vols2})
     assert resp.status_code == 200
+
+
+def test_real_mode_requires_connection():
+    client = TestClient(app)
+    r = client.post("/set_mode", json={"mode": "real"})
+    assert r.json()["mode"] == "real"
+    assert not r.json()["connected"]
+    assert client.post("/calibrate").status_code == 500
+    assert client.post("/optimize").status_code == 500
+    assert client.post("/manual", json={"voltages": [0.0]}).status_code == 500
