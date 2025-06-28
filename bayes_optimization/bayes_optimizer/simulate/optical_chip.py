@@ -42,5 +42,6 @@ def response(volts: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
         [np.sin((i + 1) * np.linspace(0, np.pi, n)) for i in range(num_channels)]
     )
     delta = volts @ patterns
-    simulated = _IDEAL_RESPONSE + 0.1 * delta
+    # amplify influence of voltages so manual adjustment has visible effect
+    simulated = _IDEAL_RESPONSE + 0.15 * delta
     return _WAVELENGTHS.copy(), simulated

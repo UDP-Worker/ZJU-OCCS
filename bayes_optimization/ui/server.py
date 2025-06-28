@@ -26,6 +26,7 @@ app.mount("/static", StaticFiles(directory=static_dir), name="static")
 
 CURRENT_MODE = "mock"
 CALIBRATION = None
+CURRENT_VOLTAGES = np.zeros(config.NUM_CHANNELS)
 
 
 @app.get("/")
@@ -38,6 +39,7 @@ def get_status():
     return {
         "mode": CURRENT_MODE,
         "num_channels": config.NUM_CHANNELS,
+        "voltages": CURRENT_VOLTAGES.tolist(),
     }
 
 
@@ -57,6 +59,8 @@ def set_channels(data: dict):
     config.NUM_CHANNELS = num
     from bayes_optimization.bayes_optimizer.hardware.mock_hardware import MockOSA
     MockOSA.current_volts = np.zeros(num)
+    global CURRENT_VOLTAGES
+    CURRENT_VOLTAGES = np.zeros(num)
     return {"num_channels": num}
 
 
@@ -90,10 +94,13 @@ def loss_fn(volts: np.ndarray) -> float:
 def manual_adjust(data: dict):
     volts = np.array(data.get("voltages", []), dtype=float)
     w, resp = optical_chip.response(volts)
+    global CURRENT_VOLTAGES
+    CURRENT_VOLTAGES = volts.copy()
     return {
         "wavelengths": w.tolist(),
         "response": resp.tolist(),
         "ideal": optical_chip._IDEAL_RESPONSE.tolist(),
+        "voltages": CURRENT_VOLTAGES.tolist(),
     }
 
 
@@ -112,6 +119,9 @@ def run_optimize():
 
     w, final_resp = optical_chip.response(refined)
     ideal = optical_chip._IDEAL_RESPONSE
+
+    global CURRENT_VOLTAGES
+    CURRENT_VOLTAGES = refined.copy()
 
     return {
         "voltages": refined.tolist(),

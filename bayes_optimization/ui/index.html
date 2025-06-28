@@ -45,6 +45,9 @@ async function refreshStatus() {
   const data = await resp.json();
   document.getElementById('status').textContent = `当前模式: ${data.mode}, 电极数: ${data.num_channels}`;
   document.getElementById('numChannels').value = data.num_channels;
+  if (data.voltages) {
+    document.getElementById('voltages').value = data.voltages.join(', ');
+  }
 }
 
 document.getElementById('modeSelect').onchange = async (e) => {
@@ -82,6 +85,9 @@ document.getElementById('manual').onclick = async () => {
   const resp = await fetch('/manual', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({voltages:vols})});
   const data = await resp.json();
   drawChart(data.wavelengths, data.ideal, data.response);
+  if (data.voltages) {
+    document.getElementById('voltages').value = data.voltages.join(', ');
+  }
 };
 
 document.getElementById('run').onclick = async () => {
@@ -91,6 +97,7 @@ document.getElementById('run').onclick = async () => {
   const data = await resp.json();
   resEl.textContent = `最优电压: ${data.voltages.map(v=>v.toFixed(3)).join(', ')}\n损失: ${data.loss.toFixed(6)}`;
   drawChart(data.wavelengths, data.ideal, data.response);
+  document.getElementById('voltages').value = data.voltages.join(', ');
 };
 
 refreshStatus();
