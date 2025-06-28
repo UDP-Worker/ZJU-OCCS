@@ -187,7 +187,7 @@ def objective_function_torch(
 def optimize_params_sgd(
     bounds,
     args,
-    maxiter: int = 300,
+    maxiter: int = 10000,
     popsize: int = 20,
 ):
     """基于 Adam 的梯度下降优化参数，接口与 :func:`optimize_params` 相同."""
@@ -200,7 +200,7 @@ def optimize_params_sgd(
     init = 0.5 + 0.1 * torch.randn(len(bounds), dtype=torch.float64, device=device)
     params = init.clamp(0.0, 1.0).detach().clone().requires_grad_(True)
 
-    optimizer = torch.optim.Adam([params], lr=0.05)
+    optimizer = torch.optim.Adam([params], lr=0.01)
 
     if tqdm is not None:
         progress_iter = tqdm(range(maxiter), desc="SGD", leave=False)
@@ -209,6 +209,8 @@ def optimize_params_sgd(
 
     best_loss = float("inf")
     best_params = params.detach().clone()
+
+    fail_count = 0
 
     for i in progress_iter:
         optimizer.zero_grad()
@@ -223,8 +225,16 @@ def optimize_params_sgd(
             n_ku,
             m_kl,
         )
-        if torch.isnan(loss):
-            break
+        if torch.isnan(loss) or torch.isinf(loss):
+            print(f"[WARN] iter {i}: loss NaN/Inf，失败次数：{fail_count}，重置学习率并继续")
+            fail_count += 1
+            if fail_count > 10:
+                break
+            for g in optimizer.param_groups:
+                g['lr'] *= 0.3                  # 降低步长重来
+            continue                            # 跳过反向传播，直接进入下一轮
+
+
         loss.backward()
         optimizer.step()
 
