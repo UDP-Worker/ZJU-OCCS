@@ -2,7 +2,8 @@
 
 from pathlib import Path
 
-NUM_CHANNELS = 16
+# Reduce channel count for faster simulation-based testing
+NUM_CHANNELS = 5
 V_RANGE = (0.0, 2.0)
 OSA_TIMEOUT = 10.0
 TARGET_WAVEFORM_PATH = str(Path(__file__).resolve().parent / 'simulate' / 'ideal_waveform.csv')

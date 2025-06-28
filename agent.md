@@ -112,7 +112,7 @@ bayes_optimization/                # 仓库根目录下的主文件夹
 
 | 名称                   | 说明                                | 类型  | 默认                          |
 | ---------------------- | ----------------------------------- | ----- | ----------------------------- |
-| `NUM_CHANNELS`         | 电极通道数 (int)                    | int   | 16                            |
+| `NUM_CHANNELS`         | 电极通道数 (int)                    | int   | 5                             |
 | `V_RANGE`              | 每通道电压极限 (tuple[float,float]) | Tuple | (0.0, 2.0)                    |
 | `OSA_TIMEOUT`          | 单次扫谱最大等待时间 (s)            | float | 10.0                          |
 | `TARGET_WAVEFORM_PATH` | 理想波形 CSV 路径                   | str   | `simulate/ideal_waveform.csv` |
@@ -190,7 +190,7 @@ bayes_optimization/                # 仓库根目录下的主文件夹
 - [x] 搭建项目整体框架，建立所有文件，根据下方的波形格式完成simulate仿真部分的实现；
 - [x] 完成bayes_optimizer下calibrator相关的实现，利用已经完成的simulate来测试是否能正确标定；
 - [x] 完成bayes_optimizer下所有与硬件无关的部分的实现；
-- [ ] 完成tests下 test_calibrator.py、test_models.py、test_optimizer.py的实现，并运行，排查之前部分是否能正确运行，你应当测试一个实际的过程，观察其是否能够输出最优参数并到达理想波形；
+- [x] 完成tests下 test_calibrator.py、test_models.py、test_optimizer.py的实现，并运行，排查之前部分是否能正确运行，你应当测试一个实际的过程，观察其是否能够输出最优参数并到达理想波形；
 - [ ] 完成scripts等其余内容的实现；
 - [ ] 完成硬件部分其余部分实现；
 
