@@ -22,6 +22,18 @@ def _load_data() -> tuple[np.ndarray, np.ndarray]:
 _WAVELENGTHS, _IDEAL_RESPONSE = _load_data()
 
 
+def set_target_waveform(wavelengths: np.ndarray, response: np.ndarray) -> None:
+    """Update the target waveform used for optimization."""
+    global _WAVELENGTHS, _IDEAL_RESPONSE
+    _WAVELENGTHS = np.asarray(wavelengths, dtype=float)
+    _IDEAL_RESPONSE = np.asarray(response, dtype=float)
+
+
+def get_target_waveform() -> tuple[np.ndarray, np.ndarray]:
+    """Return current target waveform."""
+    return _WAVELENGTHS, _IDEAL_RESPONSE
+
+
 def response(volts: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
     """Return simulated spectrum for given voltages."""
     num_channels = len(volts)
@@ -30,5 +42,6 @@ def response(volts: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
         [np.sin((i + 1) * np.linspace(0, np.pi, n)) for i in range(num_channels)]
     )
     delta = volts @ patterns
-    simulated = _IDEAL_RESPONSE + 0.1 * delta
+    # amplify influence of voltages so manual adjustment has visible effect
+    simulated = _IDEAL_RESPONSE + 0.15 * delta
     return _WAVELENGTHS.copy(), simulated

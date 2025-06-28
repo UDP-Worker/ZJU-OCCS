@@ -7,14 +7,15 @@ from typing import Tuple
 import numpy as np
 
 from . import config
-from .simulate import response
+from .hardware import apply, read_spectrum
 
 
 def measure_jacobian(n_samples: int | None = None) -> np.ndarray:
     """Measure sensitivity of the spectrum w.r.t each voltage channel."""
     num_channels = config.NUM_CHANNELS
     base_volts = np.zeros(num_channels)
-    _, base_resp = response(base_volts)
+    apply(base_volts)
+    _, base_resp = read_spectrum()
     num_feat = base_resp.size
     J = np.zeros((num_feat, num_channels))
     delta = 1e-2
@@ -24,8 +25,10 @@ def measure_jacobian(n_samples: int | None = None) -> np.ndarray:
         v_minus = base_volts.copy()
         v_plus[idx] += delta
         v_minus[idx] -= delta
-        _, resp_plus = response(v_plus)
-        _, resp_minus = response(v_minus)
+        apply(v_plus)
+        _, resp_plus = read_spectrum()
+        apply(v_minus)
+        _, resp_minus = read_spectrum()
         J[:, idx] = (resp_plus - resp_minus) / (2 * delta)
 
     return J
