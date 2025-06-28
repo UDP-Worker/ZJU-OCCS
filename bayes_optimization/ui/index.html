@@ -8,29 +8,92 @@
 </head>
 <body class="p-4">
 <h1 class="text-2xl font-bold mb-4">光学滤波器参数寻优</h1>
+
+<div class="mb-2">
+  <label class="mr-2">模式:</label>
+  <select id="modeSelect" class="select">
+    <option value="mock">仿真</option>
+    <option value="real">连接OSA</option>
+  </select>
+  <span id="status" class="ml-4 text-sm"></span>
+</div>
+
+<div class="mb-2">
+  <label>电极数量:</label>
+  <input id="numChannels" type="number" value="5" class="input w-20" />
+  <button id="setChannels" class="btn">设置并标定</button>
+</div>
+
+<div class="mb-2">
+  <label>上传目标波形:</label>
+  <input type="file" id="waveFile" />
+  <button id="uploadWave" class="btn">上传</button>
+</div>
+
+<div class="mb-2">
+  <label>手动电压:</label>
+  <textarea id="voltages" rows="2" class="textarea"></textarea>
+  <button id="manual" class="btn">下发并查看</button>
+</div>
+
 <button id="run" class="btn btn-primary">开始优化</button>
 <pre id="result" class="mt-4"></pre>
 <canvas id="chart" width="600" height="400"></canvas>
 <script>
+async function refreshStatus() {
+  const resp = await fetch('/status');
+  const data = await resp.json();
+  document.getElementById('status').textContent = `当前模式: ${data.mode}, 电极数: ${data.num_channels}`;
+  document.getElementById('numChannels').value = data.num_channels;
+}
+
+document.getElementById('modeSelect').onchange = async (e) => {
+  await fetch('/set_mode', {method: 'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({mode: e.target.value})});
+  refreshStatus();
+};
+
+document.getElementById('setChannels').onclick = async () => {
+  const n = parseInt(document.getElementById('numChannels').value);
+  await fetch('/set_channels', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({num_channels:n})});
+  await fetch('/calibrate', {method:'POST'});
+  document.getElementById('voltages').value = Array(n).fill(0).join(', ');
+  refreshStatus();
+};
+
+document.getElementById('uploadWave').onclick = async () => {
+  const f = document.getElementById('waveFile').files[0];
+  if (!f) return;
+  const fd = new FormData();
+  fd.append('file', f);
+  await fetch('/upload_waveform', {method:'POST', body: fd});
+};
+
+function drawChart(w, ideal, resp){
+  const ctx = document.getElementById('chart').getContext('2d');
+  new Chart(ctx, {
+    type:'line',
+    data:{labels:w,datasets:[{label:'理想波形',data:ideal,borderColor:'blue',fill:false},{label:'当前响应',data:resp,borderColor:'red',fill:false}]},
+    options:{responsive:true}
+  });
+}
+
+document.getElementById('manual').onclick = async () => {
+  const vols = document.getElementById('voltages').value.split(',').map(v=>parseFloat(v.trim()));
+  const resp = await fetch('/manual', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({voltages:vols})});
+  const data = await resp.json();
+  drawChart(data.wavelengths, data.ideal, data.response);
+};
+
 document.getElementById('run').onclick = async () => {
   const resEl = document.getElementById('result');
   resEl.textContent = '优化中...';
   const resp = await fetch('/optimize', {method: 'POST'});
   const data = await resp.json();
   resEl.textContent = `最优电压: ${data.voltages.map(v=>v.toFixed(3)).join(', ')}\n损失: ${data.loss.toFixed(6)}`;
-  const ctx = document.getElementById('chart').getContext('2d');
-  new Chart(ctx, {
-    type: 'line',
-    data: {
-      labels: data.wavelengths,
-      datasets: [
-        {label: '理想波形', data: data.ideal, borderColor: 'blue', fill: false},
-        {label: '优化结果', data: data.response, borderColor: 'red', fill: false}
-      ]
-    },
-    options: {responsive: true}
-  });
+  drawChart(data.wavelengths, data.ideal, data.response);
 };
+
+refreshStatus();
 </script>
 </body>
 </html>

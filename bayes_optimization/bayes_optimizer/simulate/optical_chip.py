@@ -22,6 +22,18 @@ def _load_data() -> tuple[np.ndarray, np.ndarray]:
 _WAVELENGTHS, _IDEAL_RESPONSE = _load_data()
 
 
+def set_target_waveform(wavelengths: np.ndarray, response: np.ndarray) -> None:
+    """Update the target waveform used for optimization."""
+    global _WAVELENGTHS, _IDEAL_RESPONSE
+    _WAVELENGTHS = np.asarray(wavelengths, dtype=float)
+    _IDEAL_RESPONSE = np.asarray(response, dtype=float)
+
+
+def get_target_waveform() -> tuple[np.ndarray, np.ndarray]:
+    """Return current target waveform."""
+    return _WAVELENGTHS, _IDEAL_RESPONSE
+
+
 def response(volts: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
     """Return simulated spectrum for given voltages."""
     num_channels = len(volts)
