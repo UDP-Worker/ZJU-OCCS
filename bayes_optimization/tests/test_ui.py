@@ -28,9 +28,13 @@ def test_visual_workflow():
     assert len(res["voltages"]) == 64
 
     # 手动调整部分电极
-    vols = res["voltages"]
+    vols = res["voltages"].copy()
     vols[2] *= 0.5
     vols[44] *= 0.5
     resp = client.post("/manual", json={"voltages": vols})
     data = resp.json()
     assert len(data["response"]) == len(data["ideal"])
+    status = client.get("/status").json()
+    # optimized voltages should persist after manual adjustment
+    assert np.allclose(status["voltages"], res["voltages"])
+    assert not np.allclose(status["voltages"], vols)

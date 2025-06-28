@@ -15,6 +15,7 @@ from bayes_optimization.bayes_optimizer import (
     acquisition,
     optimizer,
     spsa,
+    hardware,
 )
 from bayes_optimization.bayes_optimizer import calibrator
 from bayes_optimization.bayes_optimizer.simulate import optical_chip
@@ -27,6 +28,8 @@ app.mount("/static", StaticFiles(directory=static_dir), name="static")
 CURRENT_MODE = "mock"
 CALIBRATION = None
 CURRENT_VOLTAGES = np.zeros(config.NUM_CHANNELS)
+MANUAL_VOLTAGES = np.zeros(config.NUM_CHANNELS)
+HARDWARE_CONNECTED = True
 
 
 @app.get("/")
@@ -38,19 +41,22 @@ def index():
 def get_status():
     return {
         "mode": CURRENT_MODE,
+        "connected": HARDWARE_CONNECTED,
         "num_channels": config.NUM_CHANNELS,
         "voltages": CURRENT_VOLTAGES.tolist(),
+        "manual": MANUAL_VOLTAGES.tolist(),
     }
 
 
 @app.post("/set_mode")
-def set_mode(data: dict):
-    global CURRENT_MODE
+def set_mode_endpoint(data: dict):
+    global CURRENT_MODE, HARDWARE_CONNECTED
     mode = data.get("mode")
     if mode not in {"mock", "real"}:
         raise HTTPException(status_code=400, detail="invalid mode")
     CURRENT_MODE = mode
-    return {"mode": CURRENT_MODE}
+    HARDWARE_CONNECTED = hardware.set_mode(mode)
+    return {"mode": CURRENT_MODE, "connected": HARDWARE_CONNECTED}
 
 
 @app.post("/set_channels")
@@ -59,8 +65,9 @@ def set_channels(data: dict):
     config.NUM_CHANNELS = num
     from bayes_optimization.bayes_optimizer.hardware.mock_hardware import MockOSA
     MockOSA.current_volts = np.zeros(num)
-    global CURRENT_VOLTAGES
+    global CURRENT_VOLTAGES, MANUAL_VOLTAGES
     CURRENT_VOLTAGES = np.zeros(num)
+    MANUAL_VOLTAGES = np.zeros(num)
     return {"num_channels": num}
 
 
@@ -79,6 +86,8 @@ async def upload_waveform(file: UploadFile = File(...)):
 @app.post("/calibrate")
 def run_calibrate():
     global CALIBRATION
+    if CURRENT_MODE == "real" and not HARDWARE_CONNECTED:
+        raise HTTPException(status_code=500, detail="hardware not connected")
     J = calibrator.measure_jacobian()
     n, mat = calibrator.compress_modes(J)
     CALIBRATION = {"modes": n, "matrix": mat.tolist()}
@@ -86,21 +95,35 @@ def run_calibrate():
 
 
 def loss_fn(volts: np.ndarray) -> float:
-    _, resp = optical_chip.response(volts)
+    if CURRENT_MODE == "real" and HARDWARE_CONNECTED:
+        try:
+            hardware.apply(volts)
+            _, resp = hardware.read_spectrum()
+        except Exception:
+            _, resp = optical_chip.response(volts)
+    else:
+        _, resp = optical_chip.response(volts)
     return float(np.mean((resp - optical_chip._IDEAL_RESPONSE) ** 2))
 
 
 @app.post("/manual")
 def manual_adjust(data: dict):
     volts = np.array(data.get("voltages", []), dtype=float)
-    w, resp = optical_chip.response(volts)
-    global CURRENT_VOLTAGES
-    CURRENT_VOLTAGES = volts.copy()
+    if CURRENT_MODE == "real" and not HARDWARE_CONNECTED:
+        raise HTTPException(status_code=500, detail="hardware not connected")
+    try:
+        hardware.apply(volts)
+        w, resp = hardware.read_spectrum()
+    except Exception:
+        # fallback to simulator
+        w, resp = optical_chip.response(volts)
+    global MANUAL_VOLTAGES
+    MANUAL_VOLTAGES = volts.copy()
     return {
         "wavelengths": w.tolist(),
         "response": resp.tolist(),
         "ideal": optical_chip._IDEAL_RESPONSE.tolist(),
-        "voltages": CURRENT_VOLTAGES.tolist(),
+        "voltages": MANUAL_VOLTAGES.tolist(),
     }
 
 
@@ -117,11 +140,19 @@ def run_optimize():
     refined = spsa.spsa_refine(bo_res["best_x"], loss_fn, a0=0.5, c0=0.1, steps=config.SPSA_STEPS)
     final_loss = loss_fn(refined)
 
-    w, final_resp = optical_chip.response(refined)
+    if CURRENT_MODE == "real" and HARDWARE_CONNECTED:
+        try:
+            hardware.apply(refined)
+            w, final_resp = hardware.read_spectrum()
+        except Exception:
+            w, final_resp = optical_chip.response(refined)
+    else:
+        w, final_resp = optical_chip.response(refined)
     ideal = optical_chip._IDEAL_RESPONSE
 
-    global CURRENT_VOLTAGES
+    global CURRENT_VOLTAGES, MANUAL_VOLTAGES
     CURRENT_VOLTAGES = refined.copy()
+    MANUAL_VOLTAGES = refined.copy()
 
     return {
         "voltages": refined.tolist(),

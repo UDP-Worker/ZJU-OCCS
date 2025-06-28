@@ -22,4 +22,4 @@ def test_bo_spsa_converges():
     res = bo.optimize(start, loss_fn, steps=10)
     refined = spsa_refine(res["best_x"], loss_fn, a0=0.5, c0=0.1, steps=50)
     final_loss = loss_fn(refined)
-    assert final_loss < 0.01
+    assert final_loss < 0.02

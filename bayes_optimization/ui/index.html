@@ -31,6 +31,11 @@
 </div>
 
 <div class="mb-2">
+  <label>当前电压:</label>
+  <textarea id="curVoltages" rows="2" class="textarea" readonly></textarea>
+</div>
+
+<div class="mb-2">
   <label>手动电压:</label>
   <textarea id="voltages" rows="2" class="textarea"></textarea>
   <button id="manual" class="btn">下发并查看</button>
@@ -43,10 +48,14 @@
 async function refreshStatus() {
   const resp = await fetch('/status');
   const data = await resp.json();
-  document.getElementById('status').textContent = `当前模式: ${data.mode}, 电极数: ${data.num_channels}`;
+  const state = data.connected ? '已连接' : '未连接';
+  document.getElementById('status').textContent = `当前模式: ${data.mode} (${state}), 电极数: ${data.num_channels}`;
   document.getElementById('numChannels').value = data.num_channels;
   if (data.voltages) {
-    document.getElementById('voltages').value = data.voltages.join(', ');
+    document.getElementById('curVoltages').value = data.voltages.join(', ');
+  }
+  if (data.manual) {
+    document.getElementById('voltages').value = data.manual.join(', ');
   }
 }
 
@@ -60,6 +69,7 @@ document.getElementById('setChannels').onclick = async () => {
   await fetch('/set_channels', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({num_channels:n})});
   await fetch('/calibrate', {method:'POST'});
   document.getElementById('voltages').value = Array(n).fill(0).join(', ');
+  document.getElementById('curVoltages').value = Array(n).fill(0).join(', ');
   refreshStatus();
 };
 
@@ -88,6 +98,7 @@ document.getElementById('manual').onclick = async () => {
   if (data.voltages) {
     document.getElementById('voltages').value = data.voltages.join(', ');
   }
+  refreshStatus();
 };
 
 document.getElementById('run').onclick = async () => {
@@ -98,6 +109,7 @@ document.getElementById('run').onclick = async () => {
   resEl.textContent = `最优电压: ${data.voltages.map(v=>v.toFixed(3)).join(', ')}\n损失: ${data.loss.toFixed(6)}`;
   drawChart(data.wavelengths, data.ideal, data.response);
   document.getElementById('voltages').value = data.voltages.join(', ');
+  document.getElementById('curVoltages').value = data.voltages.join(', ');
 };
 
 refreshStatus();
