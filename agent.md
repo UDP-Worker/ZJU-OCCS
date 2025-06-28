@@ -186,7 +186,7 @@ bayes_optimization/                # 仓库根目录下的主文件夹
 
 ## 三、任务列表
 
-- [ ] 搭建项目整体框架，建立所有文件，根据下方的波形格式完成simulate仿真部分的实现；
+- [x] 搭建项目整体框架，建立所有文件，根据下方的波形格式完成simulate仿真部分的实现；
 - [x] 完成bayes_optimizer下calibrator相关的实现，利用已经完成的simulate来测试是否能正确标定；
 - [ ] 完成bayes_optimizer下所有与硬件无关的部分的实现；
 - [ ] 完成tests下 test_calibrator.py、test_models.py、test_optimizer.py的实现，并运行，排查之前部分是否能正确运行；
