@@ -4,10 +4,11 @@ from typing import Callable, Any, Dict
 import numpy as np
 
 class BayesOptimizer:
-    def __init__(self, gp, acq_fn: Callable, bounds: np.ndarray):
+    def __init__(self, gp, acq_fn: Callable, bounds: np.ndarray, *, candidate_factor: int = 4):
         self.gp = gp
         self.acq_fn = acq_fn
         self.bounds = np.asarray(bounds, dtype=float)
+        self.candidate_factor = int(candidate_factor)
 
     def optimize(
         self, start: np.ndarray, loss_fn: Callable[[np.ndarray], float], steps: int
@@ -20,9 +21,10 @@ class BayesOptimizer:
         self.gp.fit(np.vstack(X), np.array(y))
         best_x, best_y = X[0], y[0]
 
+        base = max(64, self.candidate_factor * dim)
         for _ in range(steps - 1):
             candidates = np.random.uniform(
-                self.bounds[:, 0], self.bounds[:, 1], size=(64, dim)
+                self.bounds[:, 0], self.bounds[:, 1], size=(base, dim)
             )
             mu, sigma = self.gp.predict(candidates, return_std=True)
             scores = self.acq_fn(mu, sigma, best_y)
