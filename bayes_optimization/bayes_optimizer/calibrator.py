@@ -8,12 +8,13 @@ import numpy as np
 
 from . import config
 from .hardware import apply, read_spectrum
+from .simulate.optical_chip import get_ideal_voltages
 
 
 def measure_jacobian(n_samples: int | None = None) -> np.ndarray:
     """Measure sensitivity of the spectrum w.r.t each voltage channel."""
     num_channels = config.NUM_CHANNELS
-    base_volts = np.zeros(num_channels)
+    base_volts = get_ideal_voltages(num_channels)
     apply(base_volts)
     _, base_resp = read_spectrum()
     num_feat = base_resp.size

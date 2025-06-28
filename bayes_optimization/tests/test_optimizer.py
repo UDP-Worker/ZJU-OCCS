@@ -4,7 +4,9 @@ from bayes_optimization.bayes_optimizer.optimizer import BayesOptimizer
 from bayes_optimization.bayes_optimizer.acquisition import expected_improvement
 from bayes_optimization.bayes_optimizer.spsa import spsa_refine
 from bayes_optimization.bayes_optimizer.simulate.optical_chip import (
-    response, _IDEAL_RESPONSE,
+    response,
+    _IDEAL_RESPONSE,
+    get_ideal_voltages,
 )
 
 
@@ -23,6 +25,7 @@ def test_bo_spsa_converges():
     refined = spsa_refine(res["best_x"], loss_fn, a0=0.5, c0=0.1, steps=50)
     final_loss = loss_fn(refined)
     assert final_loss < 0.02
+    assert not np.allclose(refined, np.ones(num_ch))
 
 
 def test_large_channel_optimization():
@@ -35,3 +38,4 @@ def test_large_channel_optimization():
     refined = spsa_refine(res["best_x"], loss_fn, a0=0.5, c0=0.1, steps=80)
     final_loss = loss_fn(refined)
     assert final_loss < 0.02
+    assert not np.allclose(refined, np.ones(num_ch))
