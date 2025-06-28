@@ -1,4 +1,4 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Body
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from pathlib import Path
@@ -21,12 +21,17 @@ from bayes_optimization.bayes_optimizer.simulate import optical_chip
 app = FastAPI()
 
 static_dir = Path(__file__).resolve().parent
-app.mount("/static", StaticFiles(directory=static_dir), name="static")
+app.mount("/static", StaticFiles(directory=static_dir/"frontend"/"out"), name="static")
 
 
 @app.get("/")
 def index():
-    return FileResponse(static_dir / "index.html")
+    return FileResponse(static_dir/"frontend"/"out"/"index.html")
+
+
+@app.get("/config")
+def get_config():
+    return {"num_channels": config.NUM_CHANNELS, "v_range": config.V_RANGE}
 
 
 def loss_fn(volts: np.ndarray) -> float:
@@ -34,8 +39,20 @@ def loss_fn(volts: np.ndarray) -> float:
     return float(np.mean((resp - optical_chip._IDEAL_RESPONSE) ** 2))
 
 
+@app.post("/simulate")
+def simulate(volts: list[float] = Body(...)):
+    arr = np.array(volts, dtype=float)
+    w, resp = optical_chip.response(arr)
+    return {
+        "wavelengths": w.tolist(),
+        "response": resp.tolist(),
+        "ideal": optical_chip._IDEAL_RESPONSE.tolist(),
+    }
+
+
 @app.post("/optimize")
-def run_optimize():
+def run_optimize(mode: str = Body("mock")):
+    # mode is ignored for now as we only implement mock hardware
     num_ch = config.NUM_CHANNELS
     bounds = np.tile(config.V_RANGE, (num_ch, 1))
     start = np.full(num_ch, sum(config.V_RANGE) / 2)
