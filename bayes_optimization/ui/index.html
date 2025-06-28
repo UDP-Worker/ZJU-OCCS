@@ -45,6 +45,7 @@
 <pre id="result" class="mt-4"></pre>
 <canvas id="chart" width="600" height="400"></canvas>
 <script>
+let chart;
 async function refreshStatus() {
   const resp = await fetch('/status');
   const data = await resp.json();
@@ -82,8 +83,9 @@ document.getElementById('uploadWave').onclick = async () => {
 };
 
 function drawChart(w, ideal, resp){
-  const ctx = document.getElementById('chart').getContext('2d');
-  new Chart(ctx, {
+  const ctx = document.getElementById('chart').getContext("2d");
+  if (chart) chart.destroy();
+  chart = new Chart(ctx,{
     type:'line',
     data:{labels:w,datasets:[{label:'理想波形',data:ideal,borderColor:'blue',fill:false},{label:'当前响应',data:resp,borderColor:'red',fill:false}]},
     options:{responsive:true}
@@ -108,6 +110,7 @@ document.getElementById('run').onclick = async () => {
   const data = await resp.json();
   resEl.textContent = `最优电压: ${data.voltages.map(v=>v.toFixed(3)).join(', ')}\n损失: ${data.loss.toFixed(6)}`;
   drawChart(data.wavelengths, data.ideal, data.response);
+  refreshStatus();
   document.getElementById('voltages').value = data.voltages.join(', ');
   document.getElementById('curVoltages').value = data.voltages.join(', ');
 };

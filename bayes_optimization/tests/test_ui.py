@@ -38,3 +38,11 @@ def test_visual_workflow():
     # optimized voltages should persist after manual adjustment
     assert np.allclose(status["voltages"], res["voltages"])
     assert not np.allclose(status["voltages"], vols)
+
+    # 再次运行优化和手调，确保接口仍能更新
+    res2 = client.post("/optimize").json()
+    assert len(res2["voltages"]) == 64
+    vols2 = res2["voltages"].copy()
+    vols2[0] += 0.1
+    resp = client.post("/manual", json={"voltages": vols2})
+    assert resp.status_code == 200
