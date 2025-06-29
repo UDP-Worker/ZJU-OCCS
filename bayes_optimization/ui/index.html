@@ -111,9 +111,11 @@ document.getElementById('uploadWave').onclick = async () => {
 function drawChart(w, ideal, resp){
   const ctx = document.getElementById('chart').getContext("2d");
   if (chart) chart.destroy();
+  const allEqual = w.every(v => v === w[0]);
+  const labels = allEqual ? ideal.map((_, i) => i) : w;
   chart = new Chart(ctx,{
     type:'line',
-    data:{labels:w,datasets:[{label:'理想波形',data:ideal,borderColor:'blue',fill:false},{label:'当前响应',data:resp,borderColor:'red',fill:false}]},
+    data:{labels:labels,datasets:[{label:'理想波形',data:ideal,borderColor:'blue',fill:false},{label:'当前响应',data:resp,borderColor:'red',fill:false}]},
     options:{responsive:true}
   });
 }
