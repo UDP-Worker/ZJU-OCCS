@@ -79,7 +79,7 @@ def response(volts: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
 
     diff = volts - ideal
     patterns = _MIX @ _BASIS
-    delta = diff @ patterns
+    delta = (diff @ patterns) / num_channels
 
     # amplify influence of voltages so manual adjustment has visible effect
     simulated = _IDEAL_RESPONSE + 1.0 * delta

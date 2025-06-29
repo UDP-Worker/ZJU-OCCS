@@ -27,7 +27,7 @@ def test_visual_workflow():
         if first.startswith("data:"):
             import json
             data = json.loads(first[5:])
-            assert data["loss"] > 1e-6
+            assert data["loss"] > 1e-12
 
     # 运行优化，减少步数加快测试
     config.BO_MAX_STEPS = 3
