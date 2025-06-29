@@ -27,7 +27,8 @@ def _load_data() -> tuple[np.ndarray, np.ndarray]:
 _WAVELENGTHS, _IDEAL_RESPONSE = _load_data()
 # optimal voltages corresponding to the ideal waveform
 _IDEAL_VOLTAGES: np.ndarray | None = None
-_WEIGHTS: np.ndarray | None = None
+_BASIS: np.ndarray | None = None
+_MIX: np.ndarray | None = None
 
 
 def set_target_waveform(
@@ -62,20 +63,24 @@ def response(volts: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
     """Return simulated spectrum for given voltages."""
     num_channels = len(volts)
     n = len(_IDEAL_RESPONSE)
-    global _WEIGHTS
+    global _BASIS, _MIX
+
     ideal = get_ideal_voltages(num_channels)
-    if _WEIGHTS is None or len(_WEIGHTS) != num_channels:
+
+    if _BASIS is None or _BASIS.shape != (num_channels, n):
+        x = np.linspace(0, np.pi, n)
+        _BASIS = np.array([np.sin((i + 1) * x) for i in range(num_channels)]) / np.sqrt(
+            num_channels
+        )
+
+    if _MIX is None or _MIX.shape != (num_channels, num_channels):
         rng = np.random.default_rng(0)
-        _WEIGHTS = rng.uniform(0.8, 1.2, size=num_channels)
+        _MIX = rng.normal(0.0, 0.5, size=(num_channels, num_channels))
 
-    patterns = np.array(
-        [
-            _WEIGHTS[i] * np.sin((i + 1) * np.linspace(0, np.pi, n))
-            for i in range(num_channels)
-        ]
-    ) / np.sqrt(num_channels)
+    diff = volts - ideal
+    patterns = _MIX @ _BASIS
+    delta = diff @ patterns
 
-    delta = (volts - ideal) @ patterns
     # amplify influence of voltages so manual adjustment has visible effect
-    simulated = _IDEAL_RESPONSE + 0.15 * delta
+    simulated = _IDEAL_RESPONSE + 1.0 * delta
     return _WAVELENGTHS.copy(), simulated

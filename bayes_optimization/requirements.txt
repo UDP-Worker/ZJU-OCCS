@@ -1,0 +1,7 @@
+numpy
+scipy
+scikit-learn
+fastapi
+httpx
+python-multipart
+matplotlib
