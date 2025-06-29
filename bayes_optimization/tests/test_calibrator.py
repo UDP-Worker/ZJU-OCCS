@@ -6,6 +6,8 @@ from bayes_optimization.bayes_optimizer.calibrator import (
 )
 from bayes_optimization.bayes_optimizer.simulate.optical_chip import (
     _IDEAL_RESPONSE,
+    get_ideal_voltages,
+    response,
 )
 
 
@@ -23,3 +25,17 @@ def test_compress_modes():
     # Components should be orthonormal
     prod = mat.T @ mat
     assert np.allclose(prod, np.eye(n), atol=1e-6)
+
+
+def test_calibration_effect():
+    """Perturbing a channel should change the loss and Jacobian."""
+    J = measure_jacobian()
+    # matrix should not collapse to identical rows
+    assert np.std(J) > 0.0
+
+    base = get_ideal_voltages(config.NUM_CHANNELS)
+    perturbed = base.copy()
+    perturbed[0] += 0.01
+    _, resp = response(perturbed)
+    loss = float(np.mean((resp - _IDEAL_RESPONSE) ** 2))
+    assert loss > 0.0
