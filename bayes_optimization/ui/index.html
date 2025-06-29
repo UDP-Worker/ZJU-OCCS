@@ -26,9 +26,10 @@
 
 <div class="mb-2">
   <label>上传目标波形:</label>
-  <input type="file" id="waveFile" />
+  <input type="file" id="waveFile" accept=".csv" />
   <button id="uploadWave" class="btn">上传</button>
   <span id="waveInfo" class="ml-2 text-sm text-gray-600"></span>
+  <div class="text-sm text-gray-600">仅支持CSV文件，第一行波长，第二行响应，逗号分隔</div>
 </div>
 
 <table class="table mb-2" id="voltageTable">
