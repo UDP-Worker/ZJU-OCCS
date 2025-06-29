@@ -3,6 +3,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, StreamingResponse
 from pathlib import Path
 import numpy as np
+import csv
 import sys
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -32,6 +33,7 @@ CALIBRATION = None
 CURRENT_VOLTAGES = np.zeros(config.NUM_CHANNELS)
 MANUAL_VOLTAGES = np.zeros(config.NUM_CHANNELS)
 HARDWARE_CONNECTED = True
+WAVEFORM_SOURCE = str(optical_chip.DATA_FILE.name)
 
 
 @app.get("/")
@@ -47,6 +49,7 @@ def get_status():
         "num_channels": config.NUM_CHANNELS,
         "voltages": CURRENT_VOLTAGES.tolist(),
         "manual": MANUAL_VOLTAGES.tolist(),
+        "waveform_source": WAVEFORM_SOURCE,
     }
 
 
@@ -75,14 +78,34 @@ def set_channels(data: dict):
 
 @app.post("/upload_waveform")
 async def upload_waveform(file: UploadFile = File(...)):
-    text = (await file.read()).decode()
-    lines = text.strip().splitlines()
-    if len(lines) < 2:
+    data = await file.read()
+    name = file.filename or "uploaded"
+    ext = Path(name).suffix.lower()
+    if ext != ".csv":
+        raise HTTPException(status_code=400, detail="only csv supported")
+    try:
+        text = data.decode("utf-8-sig")
+        reader = csv.reader(text.strip().splitlines())
+        rows = list(reader)
+        if len(rows) < 2:
+            raise ValueError("not enough rows")
+        wl = np.asarray(rows[0], dtype=float)
+        resp = np.asarray(rows[1], dtype=float)
+        if wl.size == 0 or resp.size == 0 or wl.size != resp.size:
+            raise ValueError("bad file")
+    except Exception:
         raise HTTPException(status_code=400, detail="bad file")
-    wl = np.fromstring(lines[0], sep=",", dtype=float)
-    resp = np.fromstring(lines[1], sep=",", dtype=float)
+
     optical_chip.set_target_waveform(wl, resp)
-    return {"points": len(wl)}
+    global WAVEFORM_SOURCE
+    WAVEFORM_SOURCE = name
+    w, ideal = optical_chip.get_target_waveform()
+    return {
+        "points": len(wl),
+        "source": name,
+        "wavelengths": w.tolist(),
+        "ideal": ideal.tolist(),
+    }
 
 
 @app.post("/calibrate")
