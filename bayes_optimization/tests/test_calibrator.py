@@ -38,4 +38,4 @@ def test_calibration_effect():
     perturbed[0] += 0.01
     _, resp = response(perturbed)
     loss = float(np.mean((resp - _IDEAL_RESPONSE) ** 2))
-    assert loss > 0.0
+    assert loss > 1e-8
