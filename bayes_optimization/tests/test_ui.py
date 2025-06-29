@@ -84,12 +84,4 @@ def test_excel_waveform_upload():
     buf.seek(0)
 
     r = client.post("/upload_waveform", files={"file": ("test.xlsx", buf.getvalue())})
-    assert r.status_code == 200
-    data = r.json()
-    assert data["points"] == 5
-    assert len(data["wavelengths"]) == 5
-    assert len(data["ideal"]) == 5
-    status = client.get("/status").json()
-    assert status["waveform_source"].endswith("test.xlsx")
-    manual = client.post("/manual", json={"voltages": [0]*config.NUM_CHANNELS}).json()
-    assert manual["ideal"] == data["ideal"]
+    assert r.status_code == 400

@@ -3,6 +3,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, StreamingResponse
 from pathlib import Path
 import numpy as np
+import csv
 import sys
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -80,27 +81,18 @@ async def upload_waveform(file: UploadFile = File(...)):
     data = await file.read()
     name = file.filename or "uploaded"
     ext = Path(name).suffix.lower()
+    if ext != ".csv":
+        raise HTTPException(status_code=400, detail="only csv supported")
     try:
-        if ext in {".xlsx", ".xls"}:
-            from io import BytesIO
-            import openpyxl
-
-            wb = openpyxl.load_workbook(BytesIO(data), data_only=True)
-            ws = wb.active
-            rows = list(ws.iter_rows(values_only=True))
-            if len(rows) < 2:
-                raise ValueError("not enough rows")
-            row0 = [c for c in rows[0] if isinstance(c, (int, float))]
-            row1 = [c for c in rows[1] if isinstance(c, (int, float))]
-            wl = np.asarray(row0, dtype=float)
-            resp = np.asarray(row1, dtype=float)
-        else:
-            text = data.decode()
-            lines = text.strip().splitlines()
-            if len(lines) < 2:
-                raise ValueError("bad file")
-            wl = np.fromstring(lines[0], sep=",", dtype=float)
-            resp = np.fromstring(lines[1], sep=",", dtype=float)
+        text = data.decode("utf-8-sig")
+        reader = csv.reader(text.strip().splitlines())
+        rows = list(reader)
+        if len(rows) < 2:
+            raise ValueError("not enough rows")
+        wl = np.asarray(rows[0], dtype=float)
+        resp = np.asarray(rows[1], dtype=float)
+        if wl.size == 0 or resp.size == 0 or wl.size != resp.size:
+            raise ValueError("bad file")
     except Exception:
         raise HTTPException(status_code=400, detail="bad file")
 
