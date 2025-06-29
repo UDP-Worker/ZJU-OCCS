@@ -9,7 +9,8 @@ from bayes_optimization.bayes_optimizer.simulate import optical_chip
 
 def loss_fn(volts: np.ndarray) -> float:
     _, resp = optical_chip.response(volts)
-    return float(np.mean((resp - optical_chip._IDEAL_RESPONSE) ** 2))
+    _, ideal = optical_chip.get_target_waveform()
+    return float(np.mean((resp - ideal) ** 2))
 
 
 def main():
@@ -37,7 +38,7 @@ def main():
     print(f"[INFO] 最终损失 {final_loss:.6f} @ {refined}")
 
     w, final_resp = optical_chip.response(refined)
-    ideal = optical_chip._IDEAL_RESPONSE
+    _, ideal = optical_chip.get_target_waveform()
 
     out_path = Path(args.out)
     out_path.parent.mkdir(parents=True, exist_ok=True)

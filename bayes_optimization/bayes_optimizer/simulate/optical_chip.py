@@ -24,7 +24,10 @@ def _load_data() -> tuple[np.ndarray, np.ndarray]:
     return wavelengths, response
 
 
-_WAVELENGTHS, _IDEAL_RESPONSE = _load_data()
+_BASE_WAVELENGTHS, _BASE_RESPONSE = _load_data()
+# Target waveform user wants to match
+_TARGET_WAVELENGTHS = _BASE_WAVELENGTHS.copy()
+_TARGET_RESPONSE = _BASE_RESPONSE.copy()
 # optimal voltages corresponding to the ideal waveform
 _IDEAL_VOLTAGES: np.ndarray | None = None
 _BASIS: np.ndarray | None = None
@@ -37,9 +40,9 @@ def set_target_waveform(
     ideal_voltages: np.ndarray | None = None,
 ) -> None:
     """Update the target waveform used for optimization."""
-    global _WAVELENGTHS, _IDEAL_RESPONSE, _IDEAL_VOLTAGES
-    _WAVELENGTHS = np.asarray(wavelengths, dtype=float)
-    _IDEAL_RESPONSE = np.asarray(response, dtype=float)
+    global _TARGET_WAVELENGTHS, _TARGET_RESPONSE, _IDEAL_VOLTAGES
+    _TARGET_WAVELENGTHS = np.asarray(wavelengths, dtype=float)
+    _TARGET_RESPONSE = np.asarray(response, dtype=float)
     if ideal_voltages is not None:
         _IDEAL_VOLTAGES = np.asarray(ideal_voltages, dtype=float)
     else:
@@ -48,7 +51,7 @@ def set_target_waveform(
 
 def get_target_waveform() -> tuple[np.ndarray, np.ndarray]:
     """Return current target waveform."""
-    return _WAVELENGTHS, _IDEAL_RESPONSE
+    return _TARGET_WAVELENGTHS, _TARGET_RESPONSE
 
 
 def get_ideal_voltages(num_channels: int) -> np.ndarray:
@@ -62,7 +65,7 @@ def get_ideal_voltages(num_channels: int) -> np.ndarray:
 def response(volts: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
     """Return simulated spectrum for given voltages."""
     num_channels = len(volts)
-    n = len(_IDEAL_RESPONSE)
+    n = len(_BASE_RESPONSE)
     global _BASIS, _MIX
 
     ideal = get_ideal_voltages(num_channels)
@@ -82,5 +85,5 @@ def response(volts: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
     delta = (diff @ patterns) / num_channels
 
     # amplify influence of voltages so manual adjustment has visible effect
-    simulated = _IDEAL_RESPONSE + 1.0 * delta
-    return _WAVELENGTHS.copy(), simulated
+    simulated = _BASE_RESPONSE + 1.0 * delta
+    return _BASE_WAVELENGTHS.copy(), simulated
