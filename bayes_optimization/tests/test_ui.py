@@ -21,6 +21,14 @@ def test_visual_workflow():
     resp = client.post("/calibrate")
     assert resp.json()["modes"] >= 1
 
+    # Stream calibration progress and ensure loss is non-zero
+    with client.stream("GET", "/calibrate_stream") as s:
+        first = next(s.iter_lines())
+        if first.startswith("data:"):
+            import json
+            data = json.loads(first[5:])
+            assert data["loss"] > 1e-6
+
     # 运行优化，减少步数加快测试
     config.BO_MAX_STEPS = 3
     config.SPSA_STEPS = 2

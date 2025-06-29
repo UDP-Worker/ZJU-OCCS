@@ -82,5 +82,5 @@ def response(volts: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
     delta = diff @ patterns
 
     # amplify influence of voltages so manual adjustment has visible effect
-    simulated = _IDEAL_RESPONSE + 0.1 * delta
+    simulated = _IDEAL_RESPONSE + 1.0 * delta
     return _WAVELENGTHS.copy(), simulated
