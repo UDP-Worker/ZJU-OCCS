@@ -67,9 +67,20 @@ document.getElementById('modeSelect').onchange = async (e) => {
 document.getElementById('setChannels').onclick = async () => {
   const n = parseInt(document.getElementById('numChannels').value);
   await fetch('/set_channels', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({num_channels:n})});
-  await fetch('/calibrate', {method:'POST'});
   buildTable(Array(n).fill(0), Array(n).fill(0));
-  refreshStatus();
+  const resEl = document.getElementById('result');
+  resEl.textContent = '标定中...';
+  const es = new EventSource('/calibrate_stream');
+  es.onmessage = (e)=>{
+    const data = JSON.parse(e.data);
+    if(data.step !== undefined){
+      drawChart(data.wavelengths, data.ideal, data.response);
+    }else if(data.done){
+      resEl.textContent = `标定完成, 模态数: ${data.modes}`;
+      es.close();
+      refreshStatus();
+    }
+  };
 };
 
 document.getElementById('uploadWave').onclick = async () => {
