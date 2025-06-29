@@ -32,6 +32,7 @@ CALIBRATION = None
 CURRENT_VOLTAGES = np.zeros(config.NUM_CHANNELS)
 MANUAL_VOLTAGES = np.zeros(config.NUM_CHANNELS)
 HARDWARE_CONNECTED = True
+WAVEFORM_SOURCE = str(optical_chip.DATA_FILE.name)
 
 
 @app.get("/")
@@ -47,6 +48,7 @@ def get_status():
         "num_channels": config.NUM_CHANNELS,
         "voltages": CURRENT_VOLTAGES.tolist(),
         "manual": MANUAL_VOLTAGES.tolist(),
+        "waveform_source": WAVEFORM_SOURCE,
     }
 
 
@@ -75,14 +77,37 @@ def set_channels(data: dict):
 
 @app.post("/upload_waveform")
 async def upload_waveform(file: UploadFile = File(...)):
-    text = (await file.read()).decode()
-    lines = text.strip().splitlines()
-    if len(lines) < 2:
+    data = await file.read()
+    name = file.filename or "uploaded"
+    ext = Path(name).suffix.lower()
+    try:
+        if ext in {".xlsx", ".xls"}:
+            from io import BytesIO
+            import openpyxl
+
+            wb = openpyxl.load_workbook(BytesIO(data), data_only=True)
+            ws = wb.active
+            rows = list(ws.iter_rows(values_only=True))
+            if len(rows) < 2:
+                raise ValueError("not enough rows")
+            row0 = [c for c in rows[0] if isinstance(c, (int, float))]
+            row1 = [c for c in rows[1] if isinstance(c, (int, float))]
+            wl = np.asarray(row0, dtype=float)
+            resp = np.asarray(row1, dtype=float)
+        else:
+            text = data.decode()
+            lines = text.strip().splitlines()
+            if len(lines) < 2:
+                raise ValueError("bad file")
+            wl = np.fromstring(lines[0], sep=",", dtype=float)
+            resp = np.fromstring(lines[1], sep=",", dtype=float)
+    except Exception:
         raise HTTPException(status_code=400, detail="bad file")
-    wl = np.fromstring(lines[0], sep=",", dtype=float)
-    resp = np.fromstring(lines[1], sep=",", dtype=float)
+
     optical_chip.set_target_waveform(wl, resp)
-    return {"points": len(wl)}
+    global WAVEFORM_SOURCE
+    WAVEFORM_SOURCE = name
+    return {"points": len(wl), "source": name}
 
 
 @app.post("/calibrate")

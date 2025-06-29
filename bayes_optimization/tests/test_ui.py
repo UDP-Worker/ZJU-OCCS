@@ -64,3 +64,26 @@ def test_real_mode_requires_connection():
     assert client.post("/calibrate").status_code == 400
     assert client.post("/optimize").status_code == 400
     assert client.post("/manual", json={"voltages": [0.0]}).status_code == 400
+
+
+def test_excel_waveform_upload():
+    client = TestClient(app)
+    import openpyxl
+    from io import BytesIO
+    import numpy as np
+
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    wl = np.linspace(1.5e-6, 1.5004e-6, 5)
+    resp = np.linspace(-30.0, -20.0, 5)
+    ws.append(["X", *wl])
+    ws.append(["Y", *resp])
+    buf = BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+
+    r = client.post("/upload_waveform", files={"file": ("test.xlsx", buf.getvalue())})
+    assert r.status_code == 200
+    assert r.json()["points"] == 5
+    status = client.get("/status").json()
+    assert status["waveform_source"].endswith("test.xlsx")

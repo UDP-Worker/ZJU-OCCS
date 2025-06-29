@@ -28,6 +28,7 @@
   <label>上传目标波形:</label>
   <input type="file" id="waveFile" />
   <button id="uploadWave" class="btn">上传</button>
+  <span id="waveInfo" class="ml-2 text-sm text-gray-600"></span>
 </div>
 
 <table class="table mb-2" id="voltageTable">
@@ -52,6 +53,9 @@ async function refreshStatus() {
   document.getElementById('numChannels').value = data.num_channels;
   if (data.voltages) {
     buildTable(data.voltages, data.manual || data.voltages);
+  }
+  if (data.waveform_source) {
+    document.getElementById('waveInfo').textContent = `来源: ${data.waveform_source}`;
   }
   const disable = data.mode === 'real' && !data.connected;
   document.getElementById('manual').disabled = disable;
@@ -93,7 +97,11 @@ document.getElementById('uploadWave').onclick = async () => {
   if (!f) return;
   const fd = new FormData();
   fd.append('file', f);
-  await fetch('/upload_waveform', {method:'POST', body: fd});
+  const resp = await fetch('/upload_waveform', {method:'POST', body: fd});
+  if(resp.ok){
+    const d = await resp.json();
+    document.getElementById('waveInfo').textContent = `来源: ${d.source}`;
+  }
 };
 
 function drawChart(w, ideal, resp){
