@@ -67,9 +67,25 @@ document.getElementById('modeSelect').onchange = async (e) => {
 document.getElementById('setChannels').onclick = async () => {
   const n = parseInt(document.getElementById('numChannels').value);
   await fetch('/set_channels', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({num_channels:n})});
-  await fetch('/calibrate', {method:'POST'});
   buildTable(Array(n).fill(0), Array(n).fill(0));
-  refreshStatus();
+  const resEl = document.getElementById('result');
+  resEl.textContent = '标定中...';
+  const es = new EventSource('/calibrate_stream');
+  es.onmessage = (e)=>{
+    const data = JSON.parse(e.data);
+    if(data.step !== undefined){
+      drawChart(data.wavelengths, data.ideal, data.response);
+      resEl.textContent += `电极 ${data.step+1} 标定完成 ` +
+        `基准电压:${data.base.toFixed(3)} ` +
+        `扰动电压:${data.perturb.toFixed(3)} ` +
+        `扰动后损失函数:${data.loss.toFixed(6)}\n`;
+    }else if(data.done){
+      const matStr = data.matrix.map(row=>row.map(v=>v.toFixed(3)).join(', ')).join('\n');
+      resEl.textContent += `灵敏度矩阵:\n${matStr}\n标定完成, 模态数: ${data.modes}`;
+      es.close();
+      refreshStatus();
+    }
+  };
 };
 
 document.getElementById('uploadWave').onclick = async () => {
