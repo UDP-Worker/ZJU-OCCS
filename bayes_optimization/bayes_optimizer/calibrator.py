@@ -59,6 +59,7 @@ def measure_jacobian_stream() -> Generator[Dict[str, np.ndarray], None, None]:
         v_minus[idx] -= delta
         apply(v_plus)
         w_p, resp_plus = read_spectrum()
+        loss = float(np.mean((resp_plus - ideal) ** 2))
         apply(v_minus)
         _, resp_minus = read_spectrum()
         J[:, idx] = (resp_plus - resp_minus) / (2 * delta)
@@ -67,6 +68,9 @@ def measure_jacobian_stream() -> Generator[Dict[str, np.ndarray], None, None]:
             "wavelengths": w_p,
             "response": resp_plus,
             "ideal": ideal,
+            "base": base_volts[idx],
+            "perturb": v_plus[idx],
+            "loss": loss,
         }
 
     yield {"done": True, "matrix": J}

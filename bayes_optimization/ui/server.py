@@ -109,6 +109,9 @@ def run_calibrate_stream():
                     "wavelengths": data["wavelengths"].tolist(),
                     "response": data["response"].tolist(),
                     "ideal": data["ideal"].tolist(),
+                    "base": data["base"],
+                    "perturb": data["perturb"],
+                    "loss": data["loss"],
                 }
                 yield "data:" + json.dumps(payload) + "\n\n"
                 time.sleep(0.5)

@@ -75,8 +75,13 @@ document.getElementById('setChannels').onclick = async () => {
     const data = JSON.parse(e.data);
     if(data.step !== undefined){
       drawChart(data.wavelengths, data.ideal, data.response);
+      resEl.textContent += `电极 ${data.step+1} 标定完成 ` +
+        `基准电压:${data.base.toFixed(3)} ` +
+        `扰动电压:${data.perturb.toFixed(3)} ` +
+        `扰动后损失函数:${data.loss.toFixed(6)}\n`;
     }else if(data.done){
-      resEl.textContent = `标定完成, 模态数: ${data.modes}`;
+      const matStr = data.matrix.map(row=>row.map(v=>v.toFixed(3)).join(', ')).join('\n');
+      resEl.textContent += `灵敏度矩阵:\n${matStr}\n标定完成, 模态数: ${data.modes}`;
       es.close();
       refreshStatus();
     }
