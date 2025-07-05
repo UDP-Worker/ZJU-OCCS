@@ -30,8 +30,8 @@ def test_visual_workflow():
             assert data["loss"] > 1e-12
 
     # 运行优化，减少步数加快测试
-    config.BO_MAX_STEPS = 3
-    config.SPSA_STEPS = 2
+    config.BO_MAX_STEPS = 60
+    config.SPSA_STEPS = 20
     res = client.post("/optimize").json()
     assert len(res["voltages"]) == 64
 
