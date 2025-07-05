@@ -16,7 +16,7 @@ def _default_ideal_voltages(n: int) -> np.ndarray:
 
 def _load_data() -> tuple[np.ndarray, np.ndarray]:
     """Load ideal waveform from CSV."""
-    with open(DATA_FILE, "r", newline="") as f:
+    with open(DATA_FILE, "r",encoding="utf-8-sig", newline="") as f:
         reader = csv.reader(f)
         rows = list(reader)
     wavelengths = np.array(rows[0], dtype=float)
