@@ -5,6 +5,7 @@ from pathlib import Path
 import numpy as np
 import csv
 import sys
+import asyncio
 
 ROOT = Path(__file__).resolve().parents[2]
 if str(ROOT) not in sys.path:
@@ -125,26 +126,29 @@ def run_calibrate_stream():
         raise HTTPException(status_code=400, detail="hardware not connected")
 
     def event_generator():
-        for data in calibrator.measure_jacobian_stream():
-            if "step" in data:
-                payload = {
-                    "step": data["step"],
-                    "wavelengths": data["wavelengths"].tolist(),
-                    "response": data["response"].tolist(),
-                    "ideal": data["ideal"].tolist(),
-                    "base": data["base"],
-                    "perturb": data["perturb"],
-                    "loss": data["loss"],
-                }
-                yield "data:" + json.dumps(payload) + "\n\n"
-                time.sleep(0.5)
-            elif "done" in data:
-                J = data["matrix"]
-                n, mat = calibrator.compress_modes(J)
-                global CALIBRATION
-                CALIBRATION = {"modes": n, "matrix": mat.tolist()}
-                payload = {"done": True, "modes": n, "matrix": mat.tolist()}
-                yield "data:" + json.dumps(payload) + "\n\n"
+        try:
+            for data in calibrator.measure_jacobian_stream():
+                if "step" in data:
+                    payload = {
+                        "step": data["step"],
+                        "wavelengths": data["wavelengths"].tolist(),
+                        "response": data["response"].tolist(),
+                        "ideal": data["ideal"].tolist(),
+                        "base": data["base"],
+                        "perturb": data["perturb"],
+                        "loss": data["loss"],
+                    }
+                    yield "data:" + json.dumps(payload) + "\n\n"
+                    time.sleep(0.5)
+                elif "done" in data:
+                    J = data["matrix"]
+                    n, mat = calibrator.compress_modes(J)
+                    global CALIBRATION
+                    CALIBRATION = {"modes": n, "matrix": mat.tolist()}
+                    payload = {"done": True, "modes": n, "matrix": mat.tolist()}
+                    yield "data:" + json.dumps(payload) + "\n\n"
+        except (GeneratorExit, asyncio.CancelledError):
+            return
 
     return StreamingResponse(event_generator(), media_type="text/event-stream")
 
