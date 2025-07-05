@@ -72,9 +72,7 @@ def response(volts: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
 
     if _BASIS is None or _BASIS.shape != (num_channels, n):
         x = np.linspace(0, np.pi, n)
-        _BASIS = np.array([np.sin((i + 1) * x) for i in range(num_channels)]) / np.sqrt(
-            num_channels
-        )
+        _BASIS = np.array([np.sin((i + 1) * x) for i in range(num_channels)]) / np.sqrt(num_channels)
 
     if _MIX is None or _MIX.shape != (num_channels, num_channels):
         rng = np.random.default_rng(0)

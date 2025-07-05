@@ -15,7 +15,7 @@ from .simulate.optical_chip import (
 )
 from typing import Generator, Dict
 
-
+# Calibration process should not rely on "ideal voltage" since our final target is to find ideal voltage.
 def measure_jacobian(n_samples: int | None = None) -> np.ndarray:
     """Measure sensitivity of the spectrum w.r.t each voltage channel."""
     num_channels = config.NUM_CHANNELS
