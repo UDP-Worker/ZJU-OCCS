@@ -5,15 +5,17 @@ from bayes_optimization.bayes_optimizer.calibrator import (
     compress_modes,
 )
 from bayes_optimization.bayes_optimizer.simulate.optical_chip import (
-    _IDEAL_RESPONSE,
+    _BASE_RESPONSE,
+    _TARGET_RESPONSE,
     get_ideal_voltages,
     response,
+    compute_loss,
 )
 
 
 def test_measure_jacobian_shape():
     J = measure_jacobian()
-    assert J.shape == (_IDEAL_RESPONSE.size, config.NUM_CHANNELS)
+    assert J.shape == (_BASE_RESPONSE.size, config.NUM_CHANNELS)
     assert np.all(np.isfinite(J))
 
 
@@ -36,6 +38,6 @@ def test_calibration_effect():
     base = get_ideal_voltages(config.NUM_CHANNELS)
     perturbed = base.copy()
     perturbed[0] += 0.01
-    _, resp = response(perturbed)
-    loss = float(np.mean((resp - _IDEAL_RESPONSE) ** 2))
+    w, resp = response(perturbed)
+    loss = compute_loss(w, resp)
     assert loss > 1e-8

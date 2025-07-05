@@ -8,10 +8,14 @@ import numpy as np
 
 from . import config
 from .hardware import apply, read_spectrum
-from .simulate.optical_chip import get_ideal_voltages, get_target_waveform
+from .simulate.optical_chip import (
+    get_ideal_voltages,
+    get_target_waveform,
+    compute_loss,
+)
 from typing import Generator, Dict
 
-
+# Calibration process should not rely on "ideal voltage" since our final target is to find ideal voltage.
 def measure_jacobian(n_samples: int | None = None) -> np.ndarray:
     """Measure sensitivity of the spectrum w.r.t each voltage channel."""
     num_channels = config.NUM_CHANNELS
@@ -59,7 +63,11 @@ def measure_jacobian_stream() -> Generator[Dict[str, np.ndarray], None, None]:
         v_minus[idx] -= delta
         apply(v_plus)
         w_p, resp_plus = read_spectrum()
-        loss = float(np.mean((resp_plus - ideal) ** 2))
+        loss = compute_loss(w_p, resp_plus)
+        if ideal.shape != resp_plus.shape or not np.allclose(w_p, wavelengths):
+            ideal_for_send = np.interp(w_p, wavelengths, ideal)
+        else:
+            ideal_for_send = ideal
         apply(v_minus)
         _, resp_minus = read_spectrum()
         J[:, idx] = (resp_plus - resp_minus) / (2 * delta)
@@ -67,7 +75,7 @@ def measure_jacobian_stream() -> Generator[Dict[str, np.ndarray], None, None]:
             "step": idx,
             "wavelengths": w_p,
             "response": resp_plus,
-            "ideal": ideal,
+            "ideal": ideal_for_send,
             "base": base_volts[idx],
             "perturb": v_plus[idx],
             "loss": loss,

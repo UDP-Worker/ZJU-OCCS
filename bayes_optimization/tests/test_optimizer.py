@@ -5,14 +5,15 @@ from bayes_optimization.bayes_optimizer.acquisition import expected_improvement
 from bayes_optimization.bayes_optimizer.spsa import spsa_refine
 from bayes_optimization.bayes_optimizer.simulate.optical_chip import (
     response,
-    _IDEAL_RESPONSE,
+    _TARGET_RESPONSE,
     get_ideal_voltages,
+    compute_loss,
 )
 
 
 def loss_fn(volts: np.ndarray) -> float:
-    _, resp = response(volts)
-    return float(np.mean((resp - _IDEAL_RESPONSE) ** 2))
+    w, resp = response(volts)
+    return compute_loss(w, resp)
 
 
 def test_bo_spsa_converges():
