@@ -4,18 +4,13 @@ from bayes_optimization.bayes_optimizer.calibrator import (
     measure_jacobian,
     compress_modes,
 )
-from bayes_optimization.bayes_optimizer.simulate.optical_chip import (
-    _BASE_RESPONSE,
-    _TARGET_RESPONSE,
-    get_ideal_voltages,
-    response,
-    compute_loss,
-)
+from bayes_optimization.bayes_optimizer.simulate import optical_chip
 
 
 def test_measure_jacobian_shape():
+    target_wl, target_resp = optical_chip.get_target_waveform()
     J = measure_jacobian()
-    assert J.shape == (_BASE_RESPONSE.size, config.NUM_CHANNELS)
+    assert J.shape == (target_resp.size, config.NUM_CHANNELS)
     assert np.all(np.isfinite(J))
 
 
@@ -35,9 +30,10 @@ def test_calibration_effect():
     # matrix should not collapse to identical rows
     assert np.std(J) > 0.0
 
-    base = get_ideal_voltages(config.NUM_CHANNELS)
+    base = optical_chip.get_ideal_voltages(config.NUM_CHANNELS)
     perturbed = base.copy()
     perturbed[0] += 0.01
-    w, resp = response(perturbed)
-    loss = compute_loss(w, resp)
+    target_wl, _ = optical_chip.get_target_waveform()
+    w, resp = optical_chip.response(perturbed, target_wl)
+    loss = optical_chip.compute_loss(w, resp)
     assert loss > 1e-8

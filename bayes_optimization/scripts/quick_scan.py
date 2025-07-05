@@ -18,7 +18,8 @@ def main():
     else:
         volts = np.zeros(config.NUM_CHANNELS)
 
-    w, resp = optical_chip.response(volts)
+    w_target, _ = optical_chip.get_target_waveform()
+    w, resp = optical_chip.response(volts, w_target)
 
     if args.out:
         out_path = Path(args.out)
