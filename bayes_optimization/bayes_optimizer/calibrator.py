@@ -9,7 +9,6 @@ import numpy as np
 from . import config
 from .hardware import apply, read_spectrum
 from .simulate.optical_chip import (
-    get_ideal_voltages,
     get_target_waveform,
     compute_loss,
 )
@@ -19,7 +18,8 @@ from typing import Generator, Dict
 def measure_jacobian(n_samples: int | None = None) -> np.ndarray:
     """Measure sensitivity of the spectrum w.r.t each voltage channel."""
     num_channels = config.NUM_CHANNELS
-    base_volts = get_ideal_voltages(num_channels)
+    # start from mid-range voltages instead of unknown ideal values
+    base_volts = np.full(num_channels, sum(config.V_RANGE) / 2)
     apply(base_volts)
     _, base_resp = read_spectrum()
     num_feat = base_resp.size
@@ -48,7 +48,7 @@ def measure_jacobian_stream() -> Generator[Dict[str, np.ndarray], None, None]:
     measured Jacobian.
     """
     num_channels = config.NUM_CHANNELS
-    base_volts = get_ideal_voltages(num_channels)
+    base_volts = np.full(num_channels, sum(config.V_RANGE) / 2)
     wavelengths, ideal = get_target_waveform()
     apply(base_volts)
     _, base_resp = read_spectrum()
