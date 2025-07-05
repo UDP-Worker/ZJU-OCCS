@@ -158,11 +158,10 @@ def loss_fn(volts: np.ndarray) -> float:
         if not HARDWARE_CONNECTED:
             raise ConnectionError("hardware not connected")
         hardware.apply(volts)
-        _, resp = hardware.read_spectrum()
+        w, resp = hardware.read_spectrum()
     else:
-        _, resp = optical_chip.response(volts)
-    _, ideal = optical_chip.get_target_waveform()
-    return float(np.mean((resp - ideal) ** 2))
+        w, resp = optical_chip.response(volts)
+    return optical_chip.compute_loss(w, resp)
 
 
 @app.post("/manual")

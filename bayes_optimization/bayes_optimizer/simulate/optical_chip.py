@@ -87,3 +87,24 @@ def response(volts: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
     # amplify influence of voltages so manual adjustment has visible effect
     simulated = _BASE_RESPONSE + 1.0 * delta
     return _BASE_WAVELENGTHS.copy(), simulated
+
+
+def compute_loss(
+    wavelengths: np.ndarray, response: np.ndarray
+) -> float:
+    """Return mean squared error against the current target waveform.
+
+    If the provided wavelengths do not match the target waveform, the target is
+    interpolated accordingly so that arbitrary uploaded targets are supported
+    without dimension mismatch errors.
+    """
+    target_wl, target_resp = get_target_waveform()
+    if (
+        response.shape != target_resp.shape
+        or wavelengths.shape != target_wl.shape
+        or not np.allclose(wavelengths, target_wl)
+    ):
+        target_interp = np.interp(wavelengths, target_wl, target_resp)
+    else:
+        target_interp = target_resp
+    return float(np.mean((response - target_interp) ** 2))

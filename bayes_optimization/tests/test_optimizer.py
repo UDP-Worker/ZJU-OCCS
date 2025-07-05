@@ -7,12 +7,13 @@ from bayes_optimization.bayes_optimizer.simulate.optical_chip import (
     response,
     _TARGET_RESPONSE,
     get_ideal_voltages,
+    compute_loss,
 )
 
 
 def loss_fn(volts: np.ndarray) -> float:
-    _, resp = response(volts)
-    return float(np.mean((resp - _TARGET_RESPONSE) ** 2))
+    w, resp = response(volts)
+    return compute_loss(w, resp)
 
 
 def test_bo_spsa_converges():

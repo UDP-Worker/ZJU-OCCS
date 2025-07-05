@@ -9,6 +9,7 @@ from bayes_optimization.bayes_optimizer.simulate.optical_chip import (
     _TARGET_RESPONSE,
     get_ideal_voltages,
     response,
+    compute_loss,
 )
 
 
@@ -37,6 +38,6 @@ def test_calibration_effect():
     base = get_ideal_voltages(config.NUM_CHANNELS)
     perturbed = base.copy()
     perturbed[0] += 0.01
-    _, resp = response(perturbed)
-    loss = float(np.mean((resp - _TARGET_RESPONSE) ** 2))
+    w, resp = response(perturbed)
+    loss = compute_loss(w, resp)
     assert loss > 1e-8
