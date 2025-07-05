@@ -42,8 +42,8 @@ def apply(volts: np.ndarray) -> None:
     _dac.apply(volts)
 
 
-def read_spectrum() -> tuple[np.ndarray, np.ndarray]:
+def read_spectrum(wavelengths: np.ndarray | None = None) -> tuple[np.ndarray, np.ndarray]:
     """Read spectrum from OSA."""
     if _osa is None:
         raise ConnectionError("hardware not connected")
-    return _osa.read()
+    return _osa.read(wavelengths)

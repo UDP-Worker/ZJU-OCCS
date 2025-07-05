@@ -3,17 +3,13 @@ from bayes_optimization.bayes_optimizer.models import GaussianProcess
 from bayes_optimization.bayes_optimizer.optimizer import BayesOptimizer
 from bayes_optimization.bayes_optimizer.acquisition import expected_improvement
 from bayes_optimization.bayes_optimizer.spsa import spsa_refine
-from bayes_optimization.bayes_optimizer.simulate.optical_chip import (
-    response,
-    _TARGET_RESPONSE,
-    get_ideal_voltages,
-    compute_loss,
-)
+from bayes_optimization.bayes_optimizer.simulate import optical_chip
 
 
 def loss_fn(volts: np.ndarray) -> float:
-    w, resp = response(volts)
-    return compute_loss(w, resp)
+    w_target, _ = optical_chip.get_target_waveform()
+    w, resp = optical_chip.response(volts, w_target)
+    return optical_chip.compute_loss(w, resp)
 
 
 def test_bo_spsa_converges():

@@ -10,8 +10,9 @@ class MockDAC:
 
 
 class MockOSA:
-    def read(self) -> tuple[np.ndarray, np.ndarray]:
-        w, resp = simulate_response(MockOSA.current_volts)
+    def read(self, wavelengths: np.ndarray | None = None) -> tuple[np.ndarray, np.ndarray]:
+        """Return simulated spectrum at optional ``wavelengths``."""
+        w, resp = simulate_response(MockOSA.current_volts, wavelengths)
         return w, resp
 
 # Store last applied voltages

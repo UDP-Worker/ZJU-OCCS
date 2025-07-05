@@ -20,8 +20,9 @@ def measure_jacobian(n_samples: int | None = None) -> np.ndarray:
     num_channels = config.NUM_CHANNELS
     # start from mid-range voltages instead of unknown ideal values
     base_volts = np.full(num_channels, sum(config.V_RANGE) / 2)
+    wavelengths, _ = get_target_waveform()
     apply(base_volts)
-    _, base_resp = read_spectrum()
+    _, base_resp = read_spectrum(wavelengths)
     num_feat = base_resp.size
     J = np.zeros((num_feat, num_channels))
     delta = 1e-2
@@ -32,9 +33,9 @@ def measure_jacobian(n_samples: int | None = None) -> np.ndarray:
         v_plus[idx] += delta
         v_minus[idx] -= delta
         apply(v_plus)
-        _, resp_plus = read_spectrum()
+        _, resp_plus = read_spectrum(wavelengths)
         apply(v_minus)
-        _, resp_minus = read_spectrum()
+        _, resp_minus = read_spectrum(wavelengths)
         J[:, idx] = (resp_plus - resp_minus) / (2 * delta)
 
     return J
@@ -51,7 +52,7 @@ def measure_jacobian_stream() -> Generator[Dict[str, np.ndarray], None, None]:
     base_volts = np.full(num_channels, sum(config.V_RANGE) / 2)
     wavelengths, ideal = get_target_waveform()
     apply(base_volts)
-    _, base_resp = read_spectrum()
+    _, base_resp = read_spectrum(wavelengths)
     num_feat = base_resp.size
     J = np.zeros((num_feat, num_channels))
     delta = 1e-2
@@ -62,14 +63,14 @@ def measure_jacobian_stream() -> Generator[Dict[str, np.ndarray], None, None]:
         v_plus[idx] += delta
         v_minus[idx] -= delta
         apply(v_plus)
-        w_p, resp_plus = read_spectrum()
+        w_p, resp_plus = read_spectrum(wavelengths)
         loss = compute_loss(w_p, resp_plus)
         if ideal.shape != resp_plus.shape or not np.allclose(w_p, wavelengths):
             ideal_for_send = np.interp(w_p, wavelengths, ideal)
         else:
             ideal_for_send = ideal
         apply(v_minus)
-        _, resp_minus = read_spectrum()
+        _, resp_minus = read_spectrum(wavelengths)
         J[:, idx] = (resp_plus - resp_minus) / (2 * delta)
         yield {
             "step": idx,
