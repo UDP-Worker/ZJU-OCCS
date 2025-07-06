@@ -158,9 +158,11 @@ def loss_fn(volts: np.ndarray) -> float:
         if not HARDWARE_CONNECTED:
             raise ConnectionError("hardware not connected")
         hardware.apply(volts)
-        w, resp = hardware.read_spectrum()
+        w_target, _ = optical_chip.get_target_waveform()
+        w, resp = hardware.read_spectrum(w_target)
     else:
-        w, resp = optical_chip.response(volts)
+        w_target, _ = optical_chip.get_target_waveform()
+        w, resp = optical_chip.response(volts, w_target)
     return optical_chip.compute_loss(w, resp)
 
 
@@ -171,7 +173,8 @@ def manual_adjust(data: dict):
         raise HTTPException(status_code=400, detail="hardware not connected")
     try:
         hardware.apply(volts)
-        w, resp = hardware.read_spectrum()
+        w_target, _ = optical_chip.get_target_waveform()
+        w, resp = hardware.read_spectrum(w_target)
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
     global MANUAL_VOLTAGES
@@ -203,14 +206,15 @@ def run_optimize():
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
+    w_target, _ = optical_chip.get_target_waveform()
     if CURRENT_MODE == "real":
         try:
             hardware.apply(refined)
-            w, final_resp = hardware.read_spectrum()
+            w, final_resp = hardware.read_spectrum(w_target)
         except Exception as e:
             raise HTTPException(status_code=400, detail=str(e))
     else:
-        w, final_resp = optical_chip.response(refined)
+        w, final_resp = optical_chip.response(refined, w_target)
     _, ideal = optical_chip.get_target_waveform()
 
     global CURRENT_VOLTAGES, MANUAL_VOLTAGES
