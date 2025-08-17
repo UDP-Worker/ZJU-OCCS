@@ -53,11 +53,12 @@ class CurveObjective:
         # 预先归一化理想曲线到形状尺度（对比时使用相同处理）
         self._target_norm = normalize_shape(self.target_ref)
 
-        # 参考网格间距用于默认对齐步长
+        # 参考网格间距用于默认对齐步长（转换到 nm 单位存储）
         if self.config.delta_step_nm is None:
             if self.lambda_ref.size < 2:
                 raise ValueError("lambda_ref needs at least 2 points to derive step.")
-            self.config.delta_step_nm = float(self.lambda_ref[1] - self.lambda_ref[0])
+            # lambda_ref 与模拟数据通常以米为单位，需要转换为 nm
+            self.config.delta_step_nm = float(self.lambda_ref[1] - self.lambda_ref[0]) * 1e9
 
         # 权重检查
         if self.config.weights is not None:
@@ -81,8 +82,15 @@ class CurveObjective:
         s_norm = normalize_shape(s_ref)
 
         # 2) 小范围波长对齐（离散平移）
-        step = cfg.delta_step_nm
-        deltas = np.arange(-cfg.delta_max_nm, cfg.delta_max_nm + 1e-12, step)
+        # 将 nm 配置转换到与 lambda_ref 相同的单位（米）
+        step = cfg.delta_step_nm * 1e-9
+        delta_max = cfg.delta_max_nm * 1e-9
+        if step <= 0:
+            raise ValueError("delta_step_nm must be positive")
+        if step > delta_max:
+            deltas = np.array([0.0])
+        else:
+            deltas = np.arange(-delta_max, delta_max + 1e-12, step)
         best_loss = None
         best_delta = 0.0
         best_s_aligned = s_norm
@@ -125,7 +133,8 @@ class CurveObjective:
                 best_s_aligned = s_cmp
 
         diag = {
-            "delta_nm": best_delta,
+            # 将最优平移量以 nm 汇报
+            "delta_nm": best_delta * 1e9,
             "lambda_ref": self.lambda_ref,
             "s_ref": s_ref,                # 重采样但未对齐
             "s_aligned": best_s_aligned,   # 对齐(+可选alpha,beta)后的谱（已归一化尺度）
