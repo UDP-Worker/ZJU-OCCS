@@ -5,8 +5,13 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional, Dict, Any, Tuple
 
-from new_bayes_optimization.optimizer.utils import load_two_row_csv, parse_two_row_array, resample_to_ref, \
-    normalize_shape, huber_loss, make_band_weights
+from new_bayes_optimization.optimizer.utils import (
+    load_two_row_csv,
+    resample_to_ref,
+    normalize_shape,
+    huber_loss,
+    make_band_weights,
+)
 
 @dataclass
 class ObjectiveConfig:
@@ -159,6 +164,59 @@ def create_objective_from_csv(target_csv_path: str | Path,
 
     return CurveObjective(lambda_ref=lambda_ref, target_ref=t_ref, config=cfg)
 
+
+class HardwareObjective:
+    """Wrap :class:`CurveObjective` with a hardware interface.
+
+    The returned callable takes a voltage vector, applies it to ``hardware`` and
+    evaluates the optical response against the reference waveform.
+    """
+
+    def __init__(self, hardware, curve_obj: CurveObjective) -> None:
+        self.hardware = hardware
+        self.curve_obj = curve_obj
+        self.wavelength = np.asarray(getattr(hardware, "wavelength"), dtype=float)
+
+    def __call__(self, volts: np.ndarray) -> Tuple[float, Dict[str, Any]]:
+        volts = np.asarray(volts, dtype=float)
+        self.hardware.apply_voltage(volts)
+        signal = self.hardware.get_simulated_response()
+        loss, diag = self.curve_obj(self.wavelength, signal)
+        diag["volts"] = volts
+        return loss, diag
+
+
+def create_hardware_objective(
+    hardware,
+    target_csv_path: str | Path,
+    M: int = 1001,
+    lambda_min: Optional[float] = None,
+    lambda_max: Optional[float] = None,
+    passband: Optional[Tuple[float, float]] = None,
+    transition: Optional[Tuple[float, float]] = None,
+    stopband: Optional[Tuple[float, float]] = None,
+    config: Optional[ObjectiveConfig] = None,
+) -> HardwareObjective:
+    """Convenience helper to build a hardware-coupled objective.
+
+    Parameters mirror :func:`create_objective_from_csv` with an additional
+    ``hardware`` argument providing ``apply_voltage`` and
+    ``get_simulated_response`` methods as implemented by
+    :class:`new_bayes_optimization.connector.MockHardware`.
+    """
+
+    curve_obj = create_objective_from_csv(
+        target_csv_path,
+        M=M,
+        lambda_min=lambda_min,
+        lambda_max=lambda_max,
+        passband=passband,
+        transition=transition,
+        stopband=stopband,
+        config=config,
+    )
+    return HardwareObjective(hardware, curve_obj)
+
 # 简易的 dataclass 替换（Python 3.10 无 dataclasses.replace 引入）
 def dataclass_replace(cfg: ObjectiveConfig, **kwargs) -> ObjectiveConfig:
     data = cfg.__dict__.copy()
@@ -167,27 +225,21 @@ def dataclass_replace(cfg: ObjectiveConfig, **kwargs) -> ObjectiveConfig:
 
 # ---------- 下面是一个最小用例（可留作注释/自测） ----------
 if __name__ == "__main__":
-    # 假设你在 connector.mock_hardware.MockHardware 上能拿到两行数据
     try:
-        from ..connector.mock_hardware import MockHardware  # 或 real_hardware
-        hw = MockHardware()
-        # 准备目标函数（举例：使用 data/ideal_waveform.csv）
-        obj = create_objective_from_csv(
+        from ..connector.mock_hardware import MockHardware
+
+        # 构造一个简易硬件和目标函数（使用自带的 ideal_waveform.csv）
+        lam = np.linspace(1.55e-6, 1.56e-6, 200)
+        hw = MockHardware(dac_size=3, wavelength=lam)
+        obj = create_hardware_objective(
+            hw,
             target_csv_path=Path(__file__).parent.parent / "data" / "ideal_waveform.csv",
-            M=1001,
-            # 可选：若知道通带/过渡/阻带大致区间，可启用分区权重
-            # passband=(1550.0, 1550.5),
-            # transition=(1549.8, 1550.0),
-            # stopband=(1548.0, 1549.6),
-            config=ObjectiveConfig(delta_max_nm=0.1, use_huber=True, huber_kappa=0.8)
+            M=200,
         )
 
-        # 从硬件读两行数据
-        resp = hw.get_simulated_response()
-        lam, sig = parse_two_row_array(resp)
-
-        # 计算目标值
-        y, diag = obj(lam, sig)
+        # 给定电压后评估目标函数
+        volts = np.zeros(hw.dac_size)
+        y, diag = obj(volts)
         print(f"Objective y = {y:.6f}, best delta = {diag['delta_nm']:.4f} nm")
-    except Exception as e:
+    except Exception as e:  # pragma: no cover - 仅用于开发自测
         print("Self-test skipped or failed:", e)
