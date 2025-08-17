@@ -226,7 +226,7 @@ def dataclass_replace(cfg: ObjectiveConfig, **kwargs) -> ObjectiveConfig:
 # ---------- 下面是一个最小用例（可留作注释/自测） ----------
 if __name__ == "__main__":
     try:
-        from ..connector.mock_hardware import MockHardware
+        from new_bayes_optimization.connector.mock_hardware import MockHardware
 
         # 构造一个简易硬件和目标函数（使用自带的 ideal_waveform.csv）
         lam = np.linspace(1.55e-6, 1.56e-6, 200)
