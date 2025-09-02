@@ -1,4 +1,4 @@
-name: base
+name: OptD
 channels:
   - defaults
   - conda-forge
@@ -6,24 +6,13 @@ channels:
   - https://repo.anaconda.com/pkgs/r
   - https://repo.anaconda.com/pkgs/msys2
 dependencies:
-  - _anaconda_depends
-  - python=3.12
-  - setuptools
-  - pip
-  - wheel
-  - anaconda-anon-usage
-  - anaconda-catalogs
-  - anaconda-client
-  - anaconda-project
-  - anaconda-navigator
-  - conda[version='>=23.7']
-  - conda-build
-  - conda-content-trust
-  - conda-libmamba-solver
-  - conda-pack
-  - conda-package-handling
-  - conda-package-streaming
-  - conda-token
-  - anaconda_prompt
-  - anaconda_powershell_prompt
-prefix: D:\ProgramData\anaconda3
+  - python=3.10
+  - matplotlib
+  - notebook
+  - tqdm
+  - scikit-learn
+  - fastapi
+  - uvicorn
+  - python-multipart
+  - pytest
+prefix: C:\Users\Lenovo\.conda\envs\OptD
