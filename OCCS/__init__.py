@@ -9,4 +9,3 @@ from .connector import MockHardware, RealHardware
 from .simulate import get_response
 
 __all__ = ["MockHardware", "RealHardware", "get_response"]
-

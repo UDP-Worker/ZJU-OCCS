@@ -1,3 +1,5 @@
+"""Tests for objective construction and hardware-coupled evaluation."""
+
 import numpy as np
 
 from OCCS.connector import MockHardware

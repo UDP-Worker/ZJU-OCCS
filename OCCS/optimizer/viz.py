@@ -11,6 +11,7 @@ from __future__ import annotations
 
 from typing import Any, Dict, Iterable, List, Optional, Tuple
 from pathlib import Path
+import csv
 import numpy as np
 
 
@@ -95,11 +96,9 @@ def plot_loss_history(
     losses = _extract_losses(history_or_result)
     iters = list(range(1, len(losses) + 1))
 
-    created_fig = False
     if ax is None:
         fig = plt.figure(figsize=(6, 3.2))
         ax = fig.add_subplot(1, 1, 1)
-        created_fig = True
     else:
         fig = ax.figure
 
@@ -161,11 +160,9 @@ def plot_uncertainty_history(
     series = _extract_diag_series(history_or_result, key)
     iters = list(range(1, len(series) + 1))
 
-    created_fig = False
     if ax is None:
         fig = plt.figure(figsize=(6, 3.2))
         ax = fig.add_subplot(1, 1, 1)
-        created_fig = True
     else:
         fig = ax.figure
 
@@ -211,9 +208,6 @@ def save_uncertainty_history_plot(
     fig.savefig(p.as_posix(), dpi=120, bbox_inches="tight")
     plt.close(fig)
     return p.as_posix()
-
-
-import csv
 
 
 def save_history_csv(

@@ -1,3 +1,5 @@
+"""Pytest configuration: ensure repo root is importable."""
+
 import os
 import sys
 

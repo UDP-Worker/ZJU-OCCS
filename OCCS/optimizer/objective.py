@@ -1,9 +1,16 @@
-# optimizer/objective.py
+"""Scalar objective functions for curve matching and hardware coupling.
+
+This module defines a robust curve similarity objective and a helper to bind
+it to the mock/real hardware interfaces.
+"""
+
 from __future__ import annotations
-import numpy as np
+
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional, Dict, Any, Tuple
+
+import numpy as np
 
 from OCCS.optimizer.utils import (
     load_two_row_csv,
@@ -142,7 +149,7 @@ class CurveObjective:
                                 s_norm,
                                 left=s_norm[0], right=s_norm[-1])
 
-            # 2.1 可选：对齐后再拟合 alpha,beta 以衔接幅度/偏置（多数情况下可关闭）
+            # 2.1 可选：对齐后再拟合 alpha,beta 以衔接幅度/偏置
             if cfg.fit_gain_bias:
                 A = np.vstack([s_shift, np.ones_like(s_shift)]).T  # [s, 1]
                 # 最小二乘 [alpha, beta]
@@ -177,7 +184,7 @@ class CurveObjective:
             "delta_nm": best_delta * 1e9,
             "lambda_ref": self.lambda_ref,
             "s_ref": s_ref,                # 重采样但未对齐
-            "s_aligned": best_s_aligned,   # 对齐(+可选alpha,beta)后的谱（已归一化尺度）
+            "s_aligned": best_s_aligned,   # 对齐后的谱（已归一化）
             "target_norm": self._target_norm
         }
         return float(best_loss), diag
@@ -229,7 +236,15 @@ def create_objective_from_csv(target_csv_path: str | Path,
     # 配置权重
     cfg = config or ObjectiveConfig()
     if cfg.weights is None and any(v is not None for v in (passband, transition, stopband)):
-        cfg = dataclass_replace(cfg, weights=make_band_weights(lambda_ref, passband, transition, stopband))
+        cfg = dataclass_replace(
+            cfg,
+            weights=make_band_weights(
+                lambda_ref,
+                passband,
+                transition,
+                stopband,
+            ),
+        )
 
     return CurveObjective(lambda_ref=lambda_ref, target_ref=t_ref, config=cfg)
 

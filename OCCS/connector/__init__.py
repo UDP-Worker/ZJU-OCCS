@@ -8,4 +8,3 @@ from .mock_hardware import MockHardware
 from .real_hardware import RealHardware
 
 __all__ = ["MockHardware", "RealHardware"]
-

@@ -1,15 +1,23 @@
-import numpy as np
+"""Bayesian optimization wrapper around scikit-optimize for OCCS hardware."""
+
+import logging
 from typing import Optional, Sequence, Tuple, Any, Dict, List
+
+import numpy as np
 from skopt import Optimizer
 
 from OCCS.optimizer.objective import HardwareObjective
-import logging
-from typing import Iterable
 
 logger = logging.getLogger(__name__)
 
 
 class BayesianOptimizer:
+    """Manage suggest-observe loop and basic diagnostics.
+
+    Wraps a ``skopt.Optimizer`` configured with voltage bounds and offers
+    convenience helpers to run multiple iterations while tracking simple
+    diagnostics like an estimate of the model's maximum uncertainty.
+    """
 
     def __init__(
         self,
@@ -40,6 +48,7 @@ class BayesianOptimizer:
 
     @property
     def optimizer(self) -> Optimizer:
+        """Return the underlying ``skopt.Optimizer`` instance."""
         if self._opt is None:
             raise RuntimeError("Optimizer not initialised: missing dimensions/bounds.")
         return self._opt
@@ -75,12 +84,14 @@ class BayesianOptimizer:
             return np.empty((0, 0))
         dims = list(self.dimensions)
         d = len(dims)
-        X = np.empty((n, d), dtype=float)
+        x_mat = np.empty((n, d), dtype=float)
         for j, (low, high) in enumerate(dims):
-            X[:, j] = rng.uniform(low, high, size=n)
-        return X
+            x_mat[:, j] = rng.uniform(low, high, size=n)
+        return x_mat
 
-    def _compute_gp_max_uncertainty(self, n_samples: int = 1024, seed: Optional[int] = None) -> Tuple[float, float]:
+    def _compute_gp_max_uncertainty(
+        self, n_samples: int = 1024, seed: Optional[int] = None
+    ) -> Tuple[float, float]:
         """Estimate the GP's maximum predictive uncertainty over the space.
 
         Uses random sampling over the bounded space to approximate the maximum
@@ -89,10 +100,13 @@ class BayesianOptimizer:
         (nan, nan).
         """
         try:
-            models = getattr(self.optimizer, "models", None)
-            if not models:
+            from typing import cast
+
+            models_obj = getattr(self.optimizer, "models", None)
+            if not models_obj:
                 return float("nan"), float("nan")
-            model = models[-1]
+            models_list = cast(list, models_obj)
+            model = models_list[-1]
         except Exception:
             return float("nan"), float("nan")
 
@@ -101,13 +115,13 @@ class BayesianOptimizer:
             return float("nan"), float("nan")
 
         rng = np.random.default_rng(seed)
-        X = self._sample_points(int(n_samples), rng)
-        if X.size == 0:
+        x_samples = self._sample_points(int(n_samples), rng)
+        if x_samples.size == 0:
             return float("nan"), float("nan")
 
         # GaussianProcessRegressor supports return_std=True
         try:
-            _, std = model.predict(X, return_std=True)
+            _, std = model.predict(x_samples, return_std=True)
         except Exception:
             return float("nan"), float("nan")
         max_std = float(np.max(std)) if std.size else float("nan")
@@ -144,7 +158,10 @@ class BayesianOptimizer:
                     float(loss0), max_std0, max_var0,
                 )
             except Exception:
-                print(f"Init | loss={float(loss0):.6g} | GP max std={max_std0:.6g} (var={max_var0:.6g})")
+                print(
+                    f"Init | loss={float(loss0):.6g} | GP max std={max_std0:.6g} "
+                    f"(var={max_var0:.6g})"
+                )
             record(x0, loss0, diag0)
 
         for it in range(1, int(n_calls) + 1):
@@ -166,7 +183,8 @@ class BayesianOptimizer:
             except Exception:
                 # Fallback printing if logging not configured
                 print(
-                    f"Iter {it} | loss={float(loss):.6g} | GP max std={max_std:.6g} (var={max_var:.6g})"
+                    f"Iter {it} | loss={float(loss):.6g} | GP max std={max_std:.6g} "
+                    f"(var={max_var:.6g})"
                 )
             record(x, loss, diag)
 

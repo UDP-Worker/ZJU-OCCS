@@ -76,19 +76,28 @@ class MockHardware:
         if bounds is None:
             return None
         # Single (low, high) pair: broadcast to all channels
-        if isinstance(bounds, tuple) and len(bounds) == 2 and not any(
-            isinstance(b, (list, tuple)) and len(b) == 2 for b in bounds  # type: ignore[truthy-bool]
+        if (
+            isinstance(bounds, tuple)
+            and len(bounds) == 2
+            and not any(
+                isinstance(b, (list, tuple)) and len(b) == 2  # type: ignore[truthy-bool]
+                for b in bounds
+            )
         ):
             low, high = float(bounds[0]), float(bounds[1])
             if not np.isfinite(low) or not np.isfinite(high) or low >= high:
-                raise ValueError("Invalid voltage_bounds: expected low < high and both finite")
+                raise ValueError(
+                    "Invalid voltage_bounds: expected low < high and both finite"
+                )
             return [(low, high) for _ in range(self.dac_size)]
 
         # Sequence of (low, high)
         try:
             seq = list(bounds)  # type: ignore[arg-type]
         except TypeError as exc:  # not iterable
-            raise ValueError("voltage_bounds must be (low, high) or sequence of such") from exc
+            raise ValueError(
+                "voltage_bounds must be (low, high) or sequence of such"
+            ) from exc
         if len(seq) != self.dac_size:
             raise ValueError(
                 f"voltage_bounds length mismatch: expected {self.dac_size}, got {len(seq)}"
@@ -99,7 +108,9 @@ class MockHardware:
                 raise ValueError(f"voltage_bounds[{i}] must be a (low, high) pair")
             lo, hi = float(pair[0]), float(pair[1])
             if not np.isfinite(lo) or not np.isfinite(hi) or lo >= hi:
-                raise ValueError(f"Invalid bounds at index {i}: low < high and both finite required")
+                raise ValueError(
+                    f"Invalid bounds at index {i}: low < high and both finite required"
+                )
             norm.append((lo, hi))
         return norm
 
@@ -147,6 +158,7 @@ class MockHardware:
     # Convenience alias for skopt: dimensions list
     @property
     def skopt_dimensions(self) -> Optional[List[Tuple[float, float]]]:
+        """Voltage bounds formatted for scikit-optimize (or ``None``)."""
         return self.voltage_bounds
 
 

@@ -1,7 +1,8 @@
+"""Integration-style tests for the Bayesian optimizer and objectives."""
+
 import os
 import sys
 import numpy as np
-import pytest
 
 # Ensure package import from repo root
 THIS_DIR = os.path.dirname(__file__)
@@ -64,7 +65,11 @@ def test_skopt_optimizes_within_bounds_and_reduces_loss():
     import OCCS as _nbo
     from OCCS.optimizer.viz import save_loss_history_plot, save_history_csv
     out_dir = Path(_nbo.__file__).resolve().parent / "data" / "optimization"
-    save_loss_history_plot(result, (out_dir / "loss_curve_3ch.png").as_posix(), title="3-ch BO loss")
+    save_loss_history_plot(
+        result,
+        (out_dir / "loss_curve_3ch.png").as_posix(),
+        title="3-ch BO loss",
+    )
     save_history_csv(result, (out_dir / "log_3ch.csv").as_posix())
 
 
@@ -82,13 +87,25 @@ def test_moderate_channels_show_improvement():
 
     target = get_response(lam, true_volts)
     curve_obj = CurveObjective(lambda_ref=lam, target_ref=target)
-    hw = MockHardware(dac_size=dac_size, wavelength=lam, noise_std=None, rng=rng, voltage_bounds=bounds)
+    hw = MockHardware(
+        dac_size=dac_size,
+        wavelength=lam,
+        noise_std=None,
+        rng=rng,
+        voltage_bounds=bounds,
+    )
     hw_obj = HardwareObjective(hw, curve_obj)
 
     x0 = np.zeros(dac_size)
     y0, _ = hw_obj(x0)
 
-    bo = BayesianOptimizer(hw_obj, dimensions=bounds, base_estimator="GP", acq_func="EI", random_state=42)
+    bo = BayesianOptimizer(
+        hw_obj,
+        dimensions=bounds,
+        base_estimator="GP",
+        acq_func="EI",
+        random_state=42,
+    )
     result = bo.run(n_calls=40, x0=x0)
     best_loss = result["best_loss"]
 
@@ -101,7 +118,11 @@ def test_moderate_channels_show_improvement():
     import OCCS as _nbo
     from OCCS.optimizer.viz import save_loss_history_plot, save_history_csv
     out_dir = Path(_nbo.__file__).resolve().parent / "data" / "optimization"
-    save_loss_history_plot(result, (out_dir / "loss_curve_8ch_40calls.png").as_posix(), title="8-ch 40 calls")
+    save_loss_history_plot(
+        result,
+        (out_dir / "loss_curve_8ch_40calls.png").as_posix(),
+        title="8-ch 40 calls",
+    )
     save_history_csv(result, (out_dir / "log_8ch_40calls.csv").as_posix())
 
 
@@ -115,18 +136,37 @@ def test_more_iterations_help_on_8_channels():
 
     target = get_response(lam, true_volts)
     curve_obj = CurveObjective(lambda_ref=lam, target_ref=target)
-    hw = MockHardware(dac_size=dac_size, wavelength=lam, noise_std=None, rng=rng, voltage_bounds=bounds)
+    hw = MockHardware(
+        dac_size=dac_size,
+        wavelength=lam,
+        noise_std=None,
+        rng=rng,
+        voltage_bounds=bounds,
+    )
     hw_obj = HardwareObjective(hw, curve_obj)
 
     x0 = np.zeros(dac_size)
-    bo = BayesianOptimizer(hw_obj, dimensions=bounds, base_estimator="GP", acq_func="EI", random_state=42)
+    bo = BayesianOptimizer(
+        hw_obj,
+        dimensions=bounds,
+        base_estimator="GP",
+        acq_func="EI",
+        random_state=42,
+    )
     res10 = bo.run(n_calls=10, x0=x0)
     # fresh optimizer to avoid carry-over state
-    bo2 = BayesianOptimizer(hw_obj, dimensions=bounds, base_estimator="GP", acq_func="EI", random_state=42)
+    bo2 = BayesianOptimizer(
+        hw_obj,
+        dimensions=bounds,
+        base_estimator="GP",
+        acq_func="EI",
+        random_state=42,
+    )
     res40 = bo2.run(n_calls=40, x0=x0)
 
     assert res40["best_loss"] <= res10["best_loss"] * 0.9, (
-        f"More calls should help: 40-calls best={res40['best_loss']} vs 10-calls best={res10['best_loss']}"
+        "More calls should help: 40-calls best="
+        f"{res40['best_loss']} vs 10-calls best={res10['best_loss']}"
     )
     # Visualize comparison curves (skip if matplotlib not installed)
     import pytest as _pytest
@@ -135,7 +175,15 @@ def test_more_iterations_help_on_8_channels():
     import OCCS as _nbo
     from OCCS.optimizer.viz import save_loss_history_plot, save_history_csv
     out_dir = Path(_nbo.__file__).resolve().parent / "data" / "optimization"
-    save_loss_history_plot(res10, (out_dir / "loss_curve_8ch_10calls.png").as_posix(), title="8-ch 10 calls")
-    save_loss_history_plot(res40, (out_dir / "loss_curve_8ch_40calls_cmp.png").as_posix(), title="8-ch 40 calls")
+    save_loss_history_plot(
+        res10,
+        (out_dir / "loss_curve_8ch_10calls.png").as_posix(),
+        title="8-ch 10 calls",
+    )
+    save_loss_history_plot(
+        res40,
+        (out_dir / "loss_curve_8ch_40calls_cmp.png").as_posix(),
+        title="8-ch 40 calls",
+    )
     save_history_csv(res10, (out_dir / "log_8ch_10calls.csv").as_posix())
     save_history_csv(res40, (out_dir / "log_8ch_40calls.csv").as_posix())

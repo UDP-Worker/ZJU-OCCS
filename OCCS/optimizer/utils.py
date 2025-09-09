@@ -1,8 +1,11 @@
-# optimizer/utils.py
+"""Utility helpers for loading, resampling and weighting spectra."""
+
 from __future__ import annotations
-import numpy as np
+
 from pathlib import Path
-from typing import Tuple, Optional, Iterable
+from typing import Tuple, Optional
+
+import numpy as np
 
 def load_two_row_csv(path: str | Path) -> Tuple[np.ndarray, np.ndarray]:
     """Load a 2-row CSV or whitespace-separated file.

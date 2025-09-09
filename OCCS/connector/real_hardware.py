@@ -37,16 +37,26 @@ class RealHardware:
         raise NotImplementedError("Real hardware driver is not implemented")
 
     def apply_voltage(self, new_volts: Iterable[float]) -> None:  # pragma: no cover - placeholder
+        """Apply a voltage vector to the DAC.
+
+        Parameters
+        ----------
+        new_volts:
+            Sequence of voltages, one per channel.
+        """
         raise NotImplementedError
 
     def read_voltage(self) -> np.ndarray:  # pragma: no cover - placeholder
+        """Return the most recently applied voltages as an array."""
         raise NotImplementedError
 
     def get_response(self) -> np.ndarray:  # pragma: no cover - placeholder
+        """Acquire the current optical response from the OSA."""
         raise NotImplementedError
 
     @property
     def skopt_dimensions(self):  # pragma: no cover - placeholder
+        """Bounds formatted for scikit-optimize (list of ``(low, high)``)."""
         return self.voltage_bounds
 
 
