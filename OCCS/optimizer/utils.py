@@ -5,9 +5,20 @@ from pathlib import Path
 from typing import Tuple, Optional, Iterable
 
 def load_two_row_csv(path: str | Path) -> Tuple[np.ndarray, np.ndarray]:
-    """
-    读取仅两行的CSV或纯文本：第1行=波长，第2行=响应。
-    自动适配逗号/空白分隔。返回 (lambda_array, signal_array) ，均为 float64 1D。
+    """Load a 2-row CSV or whitespace-separated file.
+
+    Interprets the first row as wavelengths and the second as target values.
+    Both arrays are returned as 1D float64.
+
+    Parameters
+    ----------
+    path:
+        File path. Supports comma or whitespace-separated formats.
+
+    Returns
+    -------
+    (lambda_array, signal_array):
+        Two 1D arrays of equal length.
     """
     p = Path(path)
     if not p.exists():
@@ -28,9 +39,9 @@ def load_two_row_csv(path: str | Path) -> Tuple[np.ndarray, np.ndarray]:
     return lam, sig
 
 def parse_two_row_array(arr: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
-    """
-    将硬件返回的数组解析为 (lambda, signal)。
-    支持 (2, N) 或 (N, 2)，其他形状报错。
+    """Parse an array into (lambda, signal).
+
+    Accepts shapes ``(2, N)`` or ``(N, 2)``.
     """
     a = np.asarray(arr)
     if a.ndim != 2:
@@ -51,9 +62,7 @@ def parse_two_row_array(arr: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
 def resample_to_ref(lambda_raw: np.ndarray,
                     s_raw: np.ndarray,
                     lambda_ref: np.ndarray) -> np.ndarray:
-    """
-    用一维线性插值把 (lambda_raw, s_raw) 重采样到 lambda_ref。
-    """
+    """Resample ``(lambda_raw, s_raw)`` onto ``lambda_ref`` using 1D linear interpolation."""
     lambda_raw = np.asarray(lambda_raw, dtype=np.float64).ravel()
     s_raw = np.asarray(s_raw, dtype=np.float64).ravel()
     if lambda_raw.size != s_raw.size:
@@ -61,18 +70,14 @@ def resample_to_ref(lambda_raw: np.ndarray,
     return np.interp(lambda_ref, lambda_raw, s_raw)
 
 def normalize_shape(s: np.ndarray, eps: float = 1e-12) -> np.ndarray:
-    """
-    形状归一：去中位基线 + L2 归一，使度量更关注形状。
-    """
+    """Normalise curve shape: remove median baseline and L2-normalise."""
     s = np.asarray(s, dtype=np.float64).ravel()
     s0 = s - np.median(s)
     nrm = np.linalg.norm(s0)
     return s0 / (nrm + eps)
 
 def huber_loss(e: np.ndarray, kappa: float) -> np.ndarray:
-    """
-    Huber 损失的逐点值；kappa 为二/一次转折点（在归一尺度下建议 0.5~1.0）。
-    """
+    """Pointwise Huber loss with turnover ``kappa`` on the normalised scale."""
     a = np.abs(e)
     quad = 0.5 * (e ** 2)
     lin = kappa * (a - 0.5 * kappa)
@@ -83,9 +88,10 @@ def make_band_weights(lambda_ref: np.ndarray,
                       transition: Optional[Tuple[float, float]] = None,
                       stopband: Optional[Tuple[float, float]] = None,
                       weights: Tuple[float, float, float] = (3.0, 2.0, 1.0)) -> np.ndarray:
-    """
-    根据波长区间给出分区权重：通带>过渡带>阻带。
-    任意一个区间可以留空（则其权重不会被赋值）。
+    """Build piecewise weights over wavelength bands.
+
+    Assigns higher weights to passband, then transition, then stopband. Any
+    interval can be omitted.
     """
     lam = np.asarray(lambda_ref, dtype=np.float64).ravel()
     w = np.ones_like(lam, dtype=np.float64)

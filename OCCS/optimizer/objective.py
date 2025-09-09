@@ -15,30 +15,57 @@ from OCCS.optimizer.utils import (
 
 @dataclass
 class ObjectiveConfig:
+    """Configuration for the scalar curve-matching objective.
+
+    The default is a minimal, robust setup: small-range wavelength alignment,
+    L2/Huber distance on normalised shapes, with optional band weighting.
+
+    Parameters
+    ----------
+    delta_max_nm:
+        Maximum absolute wavelength shift (in nm) allowed during discrete
+        alignment search around the reference grid.
+    delta_step_nm:
+        Step size (in nm) for the discrete alignment search. If ``None``, it
+        defaults to the spacing of the reference wavelength grid.
+    use_huber:
+        Whether to use Huber loss instead of pure L2.
+    huber_kappa:
+        Turnover point (on the normalised scale) for the Huber loss.
+    weights:
+        Optional per-sample weights on the reference grid. If ``None``, uses
+        uniform weights. Can be generated via :func:`make_band_weights`.
+    fit_gain_bias:
+        If ``True``, after alignment, fit an affine transform ``alpha*s + beta``
+        to match the target scale and offset before computing the loss.
     """
-    标量目标函数的可调参数。
-    默认先走“最小可行”配置：小范围对齐 + L2/Huber 距离 + （可选）分区加权。
-    """
-    # 对齐范围与步长（步长默认等于参考网格间距）
     delta_max_nm: float = 0.10
     delta_step_nm: Optional[float] = None
-
-    # 稳健损失
     use_huber: bool = True
-    huber_kappa: float = 0.8  # 归一尺度下的转折点
-
-    # 分区加权（若不提供 weights，则使用均匀权重）
+    huber_kappa: float = 0.8
     weights: Optional[np.ndarray] = None
-
-    # 是否在对齐后拟合幅度/偏置（alpha, beta）以进一步对齐整体尺度
     fit_gain_bias: bool = False
 
 class CurveObjective:
-    """
-    将“整条响应曲线是否接近理想曲线”压缩为一个数值 y（越小越好）。
-    使用：
-        obj = create_objective_from_csv('data/ideal_waveform.csv', M=1001, ...)
-        y, diag = obj(lambda_raw, s_raw)
+    """Curve similarity objective compressed to a scalar value.
+
+    Given a measured spectrum, re-sample to a common grid, optionally align by
+    a small wavelength shift, optionally fit gain/bias, then compute a robust
+    distance to the target. Lower is better.
+
+    Parameters
+    ----------
+    lambda_ref:
+        Reference wavelength grid (1D array).
+    target_ref:
+        Target spectrum sampled on ``lambda_ref`` (1D array).
+    config:
+        Objective configuration. See :class:`ObjectiveConfig`.
+
+    Examples
+    --------
+    >>> obj = create_objective_from_csv('data/ideal_waveform.csv', M=1001)
+    >>> y, diag = obj(lambda_raw, s_raw)
     """
     def __init__(self,
                  lambda_ref: np.ndarray,
@@ -72,8 +99,21 @@ class CurveObjective:
     def __call__(self,
                  lambda_raw: np.ndarray,
                  s_raw: np.ndarray) -> Tuple[float, Dict[str, Any]]:
-        """
-        计算标量目标值 y 以及诊断信息（用于日志与可视化）。
+        """Evaluate the objective and return diagnostics.
+
+        Parameters
+        ----------
+        lambda_raw:
+            Wavelength samples of the measured spectrum (1D array).
+        s_raw:
+            Measured spectrum values (1D array).
+
+        Returns
+        -------
+        (loss, diag):
+            ``loss`` is a float (lower is better). ``diag`` includes
+            ``delta_nm``, ``lambda_ref``, ``s_ref``, ``s_aligned``, and
+            ``target_norm`` useful for logging/plotting.
         """
         cfg = self.config
 
@@ -150,11 +190,31 @@ def create_objective_from_csv(target_csv_path: str | Path,
                               transition: Optional[Tuple[float, float]] = None,
                               stopband: Optional[Tuple[float, float]] = None,
                               config: Optional[ObjectiveConfig] = None) -> CurveObjective:
-    """
-    读取两行CSV的理想曲线，构造统一参考网格与（可选）分区权重，返回可调用的目标函数对象。
-    - M：参考网格点数
-    - lambda_min/max：不提供则取CSV的范围
-    - passband/transition/stopband：若提供，将自动生成分区权重（通带>过渡带>阻带）
+    """Build :class:`CurveObjective` from a two-row CSV.
+
+    The CSV is expected to have two rows: first row for wavelengths, second for
+    target values. The function constructs a common reference grid and optional
+    band weights, then returns a configured objective.
+
+    Parameters
+    ----------
+    target_csv_path:
+        Path to the two-row CSV file.
+    M:
+        Number of points in the reference grid.
+    lambda_min, lambda_max:
+        Optional wavelength range override. Defaults to the CSV range.
+    passband, transition, stopband:
+        Optional wavelength intervals used to build piecewise weights with
+        :func:`make_band_weights`.
+    config:
+        Optional :class:`ObjectiveConfig`. If ``weights`` is not set and band
+        intervals are provided, weights are generated automatically.
+
+    Returns
+    -------
+    CurveObjective
+        Configured objective bound to the generated reference grid.
     """
     lam_t, t_raw = load_two_row_csv(target_csv_path)
 
@@ -175,10 +235,11 @@ def create_objective_from_csv(target_csv_path: str | Path,
 
 
 class HardwareObjective:
-    """Wrap :class:`CurveObjective` with a hardware interface.
+    """Hardware-coupled objective wrapper.
 
-    The returned callable takes a voltage vector, applies it to ``hardware`` and
-    evaluates the optical response against the reference waveform.
+    Applies a voltage vector to ``hardware``, retrieves the simulated/real
+    response, and evaluates it against the target using
+    :class:`CurveObjective`.
     """
 
     def __init__(self, hardware, curve_obj: CurveObjective) -> None:
@@ -206,11 +267,10 @@ def create_hardware_objective(
     stopband: Optional[Tuple[float, float]] = None,
     config: Optional[ObjectiveConfig] = None,
 ) -> HardwareObjective:
-    """Convenience helper to build a hardware-coupled objective.
+    """Build a hardware-coupled objective.
 
-    Parameters mirror :func:`create_objective_from_csv` with an additional
-    ``hardware`` argument providing ``apply_voltage`` and
-    ``get_simulated_response`` methods as implemented by
+    Mirrors :func:`create_objective_from_csv` parameters and adds ``hardware``
+    providing ``apply_voltage`` and ``get_simulated_response`` as in
     :class:`OCCS.connector.MockHardware`.
     """
 
@@ -228,6 +288,20 @@ def create_hardware_objective(
 
 # 简易的 dataclass 替换（Python 3.10 无 dataclasses.replace 引入）
 def dataclass_replace(cfg: ObjectiveConfig, **kwargs) -> ObjectiveConfig:
+    """Shallow dataclass replace for ``ObjectiveConfig``.
+
+    Parameters
+    ----------
+    cfg:
+        Base config to copy.
+    **kwargs:
+        Fields to override.
+
+    Returns
+    -------
+    ObjectiveConfig
+        New config instance with requested overrides applied.
+    """
     data = cfg.__dict__.copy()
     data.update(kwargs)
     return ObjectiveConfig(**data)
