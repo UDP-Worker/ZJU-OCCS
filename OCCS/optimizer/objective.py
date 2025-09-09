@@ -64,8 +64,8 @@ class CurveObjective:
 
     Examples
     --------
-    >>> obj = create_objective_from_csv('data/ideal_waveform.csv', M=1001)
-    >>> y, diag = obj(lambda_raw, s_raw)
+    obj = create_objective_from_csv('data/ideal_waveform.csv', M=1001)
+    y, diag = obj(lambda_raw, s_raw)
     """
     def __init__(self,
                  lambda_ref: np.ndarray,
