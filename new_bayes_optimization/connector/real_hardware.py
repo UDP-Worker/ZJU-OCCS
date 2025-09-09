@@ -8,7 +8,7 @@ be implemented.
 
 from __future__ import annotations
 
-from typing import Iterable
+from typing import Iterable, Optional, Sequence, Tuple, List
 
 import numpy as np
 
@@ -21,9 +21,19 @@ class RealHardware:
     device communication code when integrating with hardware.
     """
 
-    def __init__(self, dac_size: int, wavelength: Iterable[float]) -> None:
+    def __init__(
+        self,
+        dac_size: int,
+        wavelength: Iterable[float],
+        voltage_bounds: Optional[Sequence[Tuple[float, float]] | Tuple[float, float]] = None,
+    ) -> None:
         self.dac_size = int(dac_size)
         self.wavelength = np.asarray(wavelength, dtype=float)
+        # Store skopt-compatible bounds (list of (low, high) or None)
+        self.voltage_bounds: Optional[List[Tuple[float, float]]] = (
+            list(voltage_bounds)  # type: ignore[list-item]
+            if isinstance(voltage_bounds, (list, tuple)) else None
+        )
         raise NotImplementedError("Real hardware driver is not implemented")
 
     def apply_voltage(self, new_volts: Iterable[float]) -> None:  # pragma: no cover - placeholder
@@ -35,6 +45,9 @@ class RealHardware:
     def get_response(self) -> np.ndarray:  # pragma: no cover - placeholder
         raise NotImplementedError
 
+    @property
+    def skopt_dimensions(self):  # pragma: no cover - placeholder
+        return self.voltage_bounds
+
 
 __all__ = ["RealHardware"]
-
