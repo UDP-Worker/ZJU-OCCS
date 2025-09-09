@@ -1,16 +1,18 @@
-# ZJU-OCCS: Optical Chip Curve Search
+# OCCS: Optical Chip Curve Search
 
-[English](./docs/README.en.md) | [简体中文](./docs/README.zh-CN.md)
+[English](./README.en.md) | [简体中文](./README.zh-CN.md)
 
 Lightweight simulator + Bayesian optimization toolkit for tuning optical chip voltages so that the resulting spectrum matches a target curve. The codebase is modular and test-backed, with utilities to log and visualize optimization progress, including GP uncertainty.
 
-Key features
+## Key Features
+
 - Mock hardware and simple, deterministic optical response simulator
 - Curve-similarity objective with alignment, robust loss, and optional band weights
 - skopt-based Bayesian optimization with per-iteration GP max uncertainty logging
 - Plots (loss, running min, GP uncertainty) and CSV export for reproducible runs
 
-Project structure
+## Project Structure
+
 - `OCCS/`
   - `connector/`: Hardware adapters
     - `mock_hardware.py`: In-memory mock device used in tests and examples
@@ -24,8 +26,10 @@ Project structure
 - `tests/`: Pytest-based tests that also generate example outputs (plots + logs)
 - `environment.yml`: Conda environment file (NumPy, scikit-optimize, Matplotlib, PyTest, etc.)
 
-Quick start
+## Quick Start
+
 1) Create environment
+
 ```bash
 # Using conda/mamba
 mamba env create -f environment.yml  # or: conda env create -f environment.yml
@@ -33,14 +37,18 @@ mamba activate ZJU-OCCS             # or: conda activate ZJU-OCCS
 ```
 
 2) Run tests (also generates example outputs)
+
 ```bash
 pytest -q
 ```
+
 Outputs appear under `OCCS/data/optimization/`:
+
 - `loss_curve_*.png`: Loss vs iteration with running min; GP max std overlay when available
 - `log_*.csv`: Iteration-by-iteration logs including voltages, loss, delta_nm, and GP uncertainty (`gp_max_std`, `gp_max_var`)
 
 3) Minimal example (script excerpt)
+
 ```python
 import numpy as np
 from OCCS.connector import MockHardware
@@ -63,14 +71,17 @@ save_uncertainty_history_plot(result, "OCCS/data/optimization/gp_uncertainty.png
 save_history_csv(result, "OCCS/data/optimization/log_example.csv")
 ```
 
-Implementation notes
+## Implementation Notes
+
 - The GP max uncertainty per iteration is estimated via random sampling over the bounded space using the current surrogate; early iterations may show NaN until the GP is fitted.
 - The objective operates on normalised shapes with optional small-range wavelength alignment and Huber loss; see `ObjectiveConfig` for tuning.
 
-Contributing
+## Contributing
+
 - Code style: NumPy-style docstrings; prefer small, focused modules and tests.
 - Tests: run `pytest -q`. Contributions that add features should include tests and minimal docs.
 
-License
+## License
+
 This project is licensed under the terms of the LICENSE file in this repository.
 
