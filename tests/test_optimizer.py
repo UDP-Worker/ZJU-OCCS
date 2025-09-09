@@ -57,6 +57,16 @@ def test_skopt_optimizes_within_bounds_and_reduces_loss():
     best_loss = result["best_loss"]
     assert best_loss <= y0 * 0.1, f"Loss not reduced enough: {best_loss} vs initial {y0}"
 
+    # Visualize loss curve (skip if matplotlib not installed)
+    import pytest as _pytest
+    _pytest.importorskip("matplotlib")
+    from pathlib import Path
+    import new_bayes_optimization as _nbo
+    from new_bayes_optimization.optimizer.viz import save_loss_history_plot, save_history_csv
+    out_dir = Path(_nbo.__file__).resolve().parent / "data" / "optimization"
+    save_loss_history_plot(result, (out_dir / "loss_curve_3ch.png").as_posix(), title="3-ch BO loss")
+    save_history_csv(result, (out_dir / "log_3ch.csv").as_posix())
+
 
 def test_moderate_channels_show_improvement():
     """With 8 channels, the optimizer should still improve loss noticeably.
@@ -84,6 +94,15 @@ def test_moderate_channels_show_improvement():
 
     # Expect at least a modest improvement without being too strict
     assert best_loss < y0 * 0.9, f"Expected some improvement, got {best_loss} vs {y0}"
+    # Visualize loss curve (skip if matplotlib not installed)
+    import pytest as _pytest
+    _pytest.importorskip("matplotlib")
+    from pathlib import Path
+    import new_bayes_optimization as _nbo
+    from new_bayes_optimization.optimizer.viz import save_loss_history_plot, save_history_csv
+    out_dir = Path(_nbo.__file__).resolve().parent / "data" / "optimization"
+    save_loss_history_plot(result, (out_dir / "loss_curve_8ch_40calls.png").as_posix(), title="8-ch 40 calls")
+    save_history_csv(result, (out_dir / "log_8ch_40calls.csv").as_posix())
 
 
 def test_more_iterations_help_on_8_channels():
@@ -109,3 +128,14 @@ def test_more_iterations_help_on_8_channels():
     assert res40["best_loss"] <= res10["best_loss"] * 0.9, (
         f"More calls should help: 40-calls best={res40['best_loss']} vs 10-calls best={res10['best_loss']}"
     )
+    # Visualize comparison curves (skip if matplotlib not installed)
+    import pytest as _pytest
+    _pytest.importorskip("matplotlib")
+    from pathlib import Path
+    import new_bayes_optimization as _nbo
+    from new_bayes_optimization.optimizer.viz import save_loss_history_plot, save_history_csv
+    out_dir = Path(_nbo.__file__).resolve().parent / "data" / "optimization"
+    save_loss_history_plot(res10, (out_dir / "loss_curve_8ch_10calls.png").as_posix(), title="8-ch 10 calls")
+    save_loss_history_plot(res40, (out_dir / "loss_curve_8ch_40calls_cmp.png").as_posix(), title="8-ch 40 calls")
+    save_history_csv(res10, (out_dir / "log_8ch_10calls.csv").as_posix())
+    save_history_csv(res40, (out_dir / "log_8ch_40calls.csv").as_posix())
