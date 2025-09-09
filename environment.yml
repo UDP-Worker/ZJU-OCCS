@@ -1,4 +1,4 @@
-name: OptD
+name: ZJU-OCCS
 channels:
   - defaults
   - conda-forge
@@ -15,4 +15,4 @@ dependencies:
   - uvicorn
   - python-multipart
   - pytest
-prefix: C:\Users\Lenovo\.conda\envs\OptD
+
