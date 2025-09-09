@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional, Dict, Any, Tuple
 
-from new_bayes_optimization.optimizer.utils import (
+from OCCS.optimizer.utils import (
     load_two_row_csv,
     resample_to_ref,
     normalize_shape,
@@ -211,7 +211,7 @@ def create_hardware_objective(
     Parameters mirror :func:`create_objective_from_csv` with an additional
     ``hardware`` argument providing ``apply_voltage`` and
     ``get_simulated_response`` methods as implemented by
-    :class:`new_bayes_optimization.connector.MockHardware`.
+    :class:`OCCS.connector.MockHardware`.
     """
 
     curve_obj = create_objective_from_csv(
@@ -235,7 +235,7 @@ def dataclass_replace(cfg: ObjectiveConfig, **kwargs) -> ObjectiveConfig:
 # ---------- 下面是一个最小用例（可留作注释/自测） ----------
 if __name__ == "__main__":
     try:
-        from new_bayes_optimization.connector.mock_hardware import MockHardware
+        from OCCS.connector.mock_hardware import MockHardware
 
         # 构造一个简易硬件和目标函数（使用自带的 ideal_waveform.csv）
         lam = np.linspace(1.55e-6, 1.56e-6, 200)

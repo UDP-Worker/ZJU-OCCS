@@ -12,7 +12,7 @@ from typing import Iterable, Optional, Sequence, Tuple, List
 
 import numpy as np
 
-from new_bayes_optimization.simulate import get_response
+from OCCS.simulate import get_response
 
 logger = logging.getLogger(__name__)
 

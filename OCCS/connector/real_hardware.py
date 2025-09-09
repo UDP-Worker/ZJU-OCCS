@@ -1,6 +1,6 @@
 """Placeholder for real hardware interaction.
 
-The project currently uses :class:`~new_bayes_optimization.connector.MockHardware`
+The project currently uses :class:`~OCCS.connector.MockHardware`
 for all simulations and tests.  This module defines a minimal stub that mirrors
 the public API and makes it clear that the real hardware backend still needs to
 be implemented.

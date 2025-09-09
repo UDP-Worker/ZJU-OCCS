@@ -1,7 +1,7 @@
 import numpy as np
 
-from new_bayes_optimization.connector import MockHardware
-from new_bayes_optimization.simulate import get_response
+from OCCS.connector import MockHardware
+from OCCS.simulate import get_response
 
 
 def test_get_response_shape_and_linearity():

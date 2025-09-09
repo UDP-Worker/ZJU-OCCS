@@ -1,7 +1,7 @@
 """Visualization helpers for Bayesian optimisation runs.
 
 This module provides lightweight plotting utilities that work with the
-result dict returned by :class:`new_bayes_optimization.optimizer.optimizer.BayesianOptimizer.run`.
+result dict returned by :class:`OCCS.optimizer.optimizer.BayesianOptimizer.run`.
 
 Matplotlib is imported lazily to avoid an import-time dependency when plots
 are not used (e.g. during headless or minimal test runs).
@@ -11,6 +11,7 @@ from __future__ import annotations
 
 from typing import Any, Dict, Iterable, List, Optional, Tuple
 from pathlib import Path
+import numpy as np
 
 
 def _require_matplotlib():
@@ -41,6 +42,24 @@ def _extract_losses(history_or_result: Dict[str, Any] | Iterable[Dict[str, Any]]
         history = history_or_result  # type: ignore[assignment]
     losses: List[float] = [float(h["loss"]) for h in history]
     return losses
+
+
+def _extract_diag_series(
+    history_or_result: Dict[str, Any] | Iterable[Dict[str, Any]], key: str
+) -> List[float]:
+    if isinstance(history_or_result, dict) and "history" in history_or_result:
+        history = history_or_result.get("history", [])
+    else:
+        history = history_or_result  # type: ignore[assignment]
+    vals: List[float] = []
+    for h in history:
+        d = h.get("diag", {}) or {}
+        v = d.get(key)
+        try:
+            vals.append(float(v))
+        except Exception:
+            vals.append(float("nan"))
+    return vals
 
 
 def plot_loss_history(
@@ -93,8 +112,66 @@ def plot_loss_history(
             running.append(cur)
         ax.plot(iters, running, ls="--", lw=1.2, color="#d55e00", label="running min")
 
+    # If uncertainty info present, overlay on a twin axis for visibility
+    std_series = _extract_diag_series(history_or_result, "gp_max_std")
+    has_std = any(np.isfinite(v) for v in std_series if v is not None)
+    ax2 = None
+    if has_std:
+        if std_series:
+            ax2 = ax.twinx()
+            ax2.plot(iters, std_series, color="#0072b2", alpha=0.6, lw=1.2, label="GP max std")
+            ax2.set_ylabel("GP max std")
+
     ax.set_xlabel(xlabel)
     ax.set_ylabel(ylabel)
+    if title:
+        ax.set_title(title)
+    ax.grid(True, alpha=0.3)
+    if ax2 is not None:
+        # Combine legends from both axes
+        lines1, labels1 = ax.get_legend_handles_labels()
+        lines2, labels2 = ax2.get_legend_handles_labels()
+        ax.legend(lines1 + lines2, labels1 + labels2, loc="best", framealpha=0.8)
+    else:
+        ax.legend(loc="best", framealpha=0.8)
+    fig.tight_layout()
+    return fig, ax
+
+
+def plot_uncertainty_history(
+    history_or_result: Dict[str, Any] | Iterable[Dict[str, Any]],
+    *,
+    metric: str = "std",  # "std" or "var"
+    ax=None,
+    title: Optional[str] = None,
+    xlabel: str = "Iteration",
+    ylabel_std: str = "GP max std",
+    ylabel_var: str = "GP max var",
+):
+    """Plot GP max uncertainty vs. iteration from a BO run.
+
+    Parameters
+    ----------
+    metric:
+        Which metric to plot: "std" (posterior standard deviation) or
+        "var" (posterior variance).
+    """
+    _, plt = _require_matplotlib()
+    key = "gp_max_std" if metric.lower() == "std" else "gp_max_var"
+    series = _extract_diag_series(history_or_result, key)
+    iters = list(range(1, len(series) + 1))
+
+    created_fig = False
+    if ax is None:
+        fig = plt.figure(figsize=(6, 3.2))
+        ax = fig.add_subplot(1, 1, 1)
+        created_fig = True
+    else:
+        fig = ax.figure
+
+    ax.plot(iters, series, marker="o", ms=3.0, lw=1.2, label=key)
+    ax.set_xlabel(xlabel)
+    ax.set_ylabel(ylabel_std if key == "gp_max_std" else ylabel_var)
     if title:
         ax.set_title(title)
     ax.grid(True, alpha=0.3)
@@ -121,6 +198,21 @@ def save_loss_history_plot(
     return p.as_posix()
 
 
+def save_uncertainty_history_plot(
+    history_or_result: Dict[str, Any] | Iterable[Dict[str, Any]],
+    path: str,
+    **plot_kwargs: Any,
+) -> str:
+    """Plot GP uncertainty history and save to file."""
+    _, plt = _require_matplotlib()
+    fig, _ = plot_uncertainty_history(history_or_result, **plot_kwargs)
+    p = Path(path)
+    p.parent.mkdir(parents=True, exist_ok=True)
+    fig.savefig(p.as_posix(), dpi=120, bbox_inches="tight")
+    plt.close(fig)
+    return p.as_posix()
+
+
 import csv
 
 
@@ -128,7 +220,7 @@ def save_history_csv(
     history_or_result: Dict[str, Any] | Iterable[Dict[str, Any]],
     path: str,
     include_running_min: bool = True,
-    diag_keys: Tuple[str, ...] = ("delta_nm",),
+    diag_keys: Tuple[str, ...] = ("delta_nm", "gp_max_std", "gp_max_var"),
 ) -> str:
     """Save optimisation history to CSV.
 
@@ -207,5 +299,7 @@ def save_history_csv(
 __all__ = [
     "plot_loss_history",
     "save_loss_history_plot",
+    "plot_uncertainty_history",
+    "save_uncertainty_history_plot",
     "save_history_csv",
 ]

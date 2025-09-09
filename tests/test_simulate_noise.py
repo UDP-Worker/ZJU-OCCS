@@ -1,6 +1,6 @@
 import numpy as np
 
-from new_bayes_optimization.simulate import get_response
+from OCCS.simulate import get_response
 
 
 def test_zero_noise_equals_deterministic():

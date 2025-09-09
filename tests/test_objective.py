@@ -1,8 +1,8 @@
 import numpy as np
 
-from new_bayes_optimization.connector import MockHardware
-from new_bayes_optimization.optimizer.objective import create_hardware_objective
-from new_bayes_optimization.simulate import get_response
+from OCCS.connector import MockHardware
+from OCCS.optimizer.objective import create_hardware_objective
+from OCCS.simulate import get_response
 
 
 def _save_two_row_csv(path, x, y):

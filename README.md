@@ -22,7 +22,7 @@ python examples/run_evolution.py
 执行下列命令即可在命令行运行：
 
 ```bash
-python bayes_optimization/scripts/run_optimization.py --mode mock
+python OCCS/scripts/run_optimization.py --mode mock
 ```
 
 该命令会输出最佳电压并在 `data/reports/` 生成波形对比图。
@@ -30,7 +30,7 @@ python bayes_optimization/scripts/run_optimization.py --mode mock
 也可以启动前端界面，以交互形式查看优化过程：
 
 ```bash
-python bayes_optimization/ui/server.py
+python OCCS/ui/server.py
 ```
 
 然后打开浏览器访问 `http://localhost:8002` 即可查看结果。

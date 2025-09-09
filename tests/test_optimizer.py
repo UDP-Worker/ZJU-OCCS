@@ -9,10 +9,10 @@ REPO_ROOT = os.path.abspath(os.path.join(THIS_DIR, "..", ".."))
 if REPO_ROOT not in sys.path:
     sys.path.insert(0, REPO_ROOT)
 
-from new_bayes_optimization.connector import MockHardware
-from new_bayes_optimization.simulate import get_response
-from new_bayes_optimization.optimizer.objective import CurveObjective, HardwareObjective
-from new_bayes_optimization.optimizer.optimizer import BayesianOptimizer
+from OCCS.connector import MockHardware
+from OCCS.simulate import get_response
+from OCCS.optimizer.objective import CurveObjective, HardwareObjective
+from OCCS.optimizer.optimizer import BayesianOptimizer
 
 
 def test_skopt_optimizes_within_bounds_and_reduces_loss():
@@ -61,8 +61,8 @@ def test_skopt_optimizes_within_bounds_and_reduces_loss():
     import pytest as _pytest
     _pytest.importorskip("matplotlib")
     from pathlib import Path
-    import new_bayes_optimization as _nbo
-    from new_bayes_optimization.optimizer.viz import save_loss_history_plot, save_history_csv
+    import OCCS as _nbo
+    from OCCS.optimizer.viz import save_loss_history_plot, save_history_csv
     out_dir = Path(_nbo.__file__).resolve().parent / "data" / "optimization"
     save_loss_history_plot(result, (out_dir / "loss_curve_3ch.png").as_posix(), title="3-ch BO loss")
     save_history_csv(result, (out_dir / "log_3ch.csv").as_posix())
@@ -98,8 +98,8 @@ def test_moderate_channels_show_improvement():
     import pytest as _pytest
     _pytest.importorskip("matplotlib")
     from pathlib import Path
-    import new_bayes_optimization as _nbo
-    from new_bayes_optimization.optimizer.viz import save_loss_history_plot, save_history_csv
+    import OCCS as _nbo
+    from OCCS.optimizer.viz import save_loss_history_plot, save_history_csv
     out_dir = Path(_nbo.__file__).resolve().parent / "data" / "optimization"
     save_loss_history_plot(result, (out_dir / "loss_curve_8ch_40calls.png").as_posix(), title="8-ch 40 calls")
     save_history_csv(result, (out_dir / "log_8ch_40calls.csv").as_posix())
@@ -132,8 +132,8 @@ def test_more_iterations_help_on_8_channels():
     import pytest as _pytest
     _pytest.importorskip("matplotlib")
     from pathlib import Path
-    import new_bayes_optimization as _nbo
-    from new_bayes_optimization.optimizer.viz import save_loss_history_plot, save_history_csv
+    import OCCS as _nbo
+    from OCCS.optimizer.viz import save_loss_history_plot, save_history_csv
     out_dir = Path(_nbo.__file__).resolve().parent / "data" / "optimization"
     save_loss_history_plot(res10, (out_dir / "loss_curve_8ch_10calls.png").as_posix(), title="8-ch 10 calls")
     save_loss_history_plot(res40, (out_dir / "loss_curve_8ch_40calls_cmp.png").as_posix(), title="8-ch 40 calls")
