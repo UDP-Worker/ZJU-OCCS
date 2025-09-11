@@ -215,7 +215,7 @@ class HardwareObjective:
     def __call__(self, volts: np.ndarray) -> Tuple[float, Dict[str, Any]]:
         volts = np.asarray(volts, dtype=float)
         self.hardware.apply_voltage(volts)
-        signal = self.hardware.get_simulated_response()
+        signal = self.hardware.get_response()
         loss, diag = self.curve_obj(self.wavelength, signal)
         diag["volts"] = volts
         return loss, diag

@@ -12,7 +12,7 @@ from typing import Iterable, Optional, Sequence, Tuple, List
 
 import numpy as np
 
-from OCCS.simulate import get_response
+from OCCS.simulate import get_response as get_simulate_response
 
 logger = logging.getLogger(__name__)
 
@@ -145,10 +145,10 @@ class MockHardware:
 
         return self._current_volts.copy()
 
-    def get_simulated_response(self) -> np.ndarray:
+    def get_response(self) -> np.ndarray:
         """Return the simulated optical response for the current voltages."""
 
-        return get_response(
+        return get_simulate_response(
             self.wavelength,
             self._current_volts,
             noise_std=self.noise_std,
