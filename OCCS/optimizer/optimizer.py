@@ -227,6 +227,11 @@ class BayesianOptimizer:
             max_std0, max_var0 = self._compute_gp_max_uncertainty(n_samples=1024, seed=12345)
             diag0["gp_max_std"] = max_std0
             diag0["gp_max_var"] = max_var0
+            # Track exploration parameter into diagnostics for logging/visualization
+            if param_name == "xi":
+                diag0["xi"] = float(param_value)
+            elif param_name == "kappa":
+                diag0["kappa"] = float(param_value)
             try:
                 logger.info(
                     "Init | loss=%.6g | %s=%.4g | GP max std=%.6g (var=%.6g)",
@@ -252,6 +257,11 @@ class BayesianOptimizer:
             )
             diag["gp_max_std"] = max_std
             diag["gp_max_var"] = max_var
+            # Also track current exploration parameter for this iteration
+            if param_name == "xi":
+                diag["xi"] = float(param_value)
+            elif param_name == "kappa":
+                diag["kappa"] = float(param_value)
 
             # --------- Adaptive exploration update (soft rebuild if changed) ----------
             improved = (float(best_loss) - float(loss)) > max(0.005 * abs(float(best_loss)), 1e-12)

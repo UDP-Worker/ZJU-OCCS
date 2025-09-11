@@ -63,6 +63,19 @@ def _extract_diag_series(
     return vals
 
 
+def _auto_dpi(n_points: int, *, base: int = 160, per_point: float = 2.0, max_dpi: int = 360) -> int:
+    """Choose a higher DPI for long histories to keep PNG crisp.
+
+    Simple linear rule with clamping: dpi = base + per_point * n_points.
+    """
+    try:
+        n = int(n_points)
+    except Exception:
+        n = 0
+    dpi = int(base + per_point * max(0, n))
+    return max(base, min(max_dpi, dpi))
+
+
 def plot_loss_history(
     history_or_result: Dict[str, Any] | Iterable[Dict[str, Any]],
     *,
@@ -111,15 +124,47 @@ def plot_loss_history(
             running.append(cur)
         ax.plot(iters, running, ls="--", lw=1.2, color="#d55e00", label="running min")
 
-    # If uncertainty info present, overlay on a twin axis for visibility
-    std_series = _extract_diag_series(history_or_result, "gp_max_std")
-    has_std = any(np.isfinite(v) for v in std_series if v is not None)
+    # Overlay only xi on the right: normalize by its min/max across the run and show raw xi ticks
+    xi_series = _extract_diag_series(history_or_result, "xi")
+    has_xi = any(np.isfinite(v) for v in xi_series if v is not None)
     ax2 = None
-    if has_std:
-        if std_series:
-            ax2 = ax.twinx()
-            ax2.plot(iters, std_series, color="#0072b2", alpha=0.6, lw=1.2, label="GP max std")
-            ax2.set_ylabel("GP max std")
+    if has_xi and xi_series:
+        # Compute finite min/max for normalization
+        finite_xi = np.asarray([v for v in xi_series if np.isfinite(v)], dtype=float)
+        xi_min = float(np.min(finite_xi)) if finite_xi.size else 0.0
+        xi_max = float(np.max(finite_xi)) if finite_xi.size else 1.0
+        if not np.isfinite(xi_min) or not np.isfinite(xi_max) or xi_max <= xi_min:
+            xi_min, xi_max = 0.0, 1.0
+
+        # Normalize series into [0,1]
+        denom = max(1e-12, (xi_max - xi_min))
+        xi_norm = []
+        for v in xi_series:
+            try:
+                xi_norm.append((float(v) - xi_min) / denom)
+            except Exception:
+                xi_norm.append(np.nan)
+
+        # Right axis hosts normalized data but hides its own ticks
+        ax2 = ax.twinx()
+        ax2.plot(iters, xi_norm, color="#009e73", alpha=0.9, lw=1.2, label="xi (norm)")
+        ax2.set_ylim(0.0, 1.0)
+        ax2.grid(False)
+        ax2.set_yticks([])
+        ax2.set_ylabel("")
+
+        # Add a secondary right axis that shows raw xi values corresponding to normalized [0,1]
+        try:
+            def norm_to_xi(y: float) -> float:
+                return xi_min + y * (xi_max - xi_min)
+
+            def xi_to_norm(x: float) -> float:
+                return (x - xi_min) / max(1e-12, (xi_max - xi_min))
+
+            secax = ax2.secondary_yaxis("right", functions=(norm_to_xi, xi_to_norm))
+            secax.set_ylabel("xi")
+        except Exception:
+            pass
 
     ax.set_xlabel(xlabel)
     ax.set_ylabel(ylabel)
@@ -180,6 +225,7 @@ def plot_uncertainty_history(
 def save_loss_history_plot(
     history_or_result: Dict[str, Any] | Iterable[Dict[str, Any]],
     path: str,
+    dpi: Optional[int] = None,
     **plot_kwargs: Any,
 ) -> str:
     """Convenience function: plot loss history and save to file.
@@ -190,7 +236,12 @@ def save_loss_history_plot(
     fig, _ = plot_loss_history(history_or_result, **plot_kwargs)
     p = Path(path)
     p.parent.mkdir(parents=True, exist_ok=True)
-    fig.savefig(p.as_posix(), dpi=120, bbox_inches="tight")
+    # Choose a higher DPI automatically when many points are present
+    if dpi is None:
+        # Use number of loss points as heuristic
+        n = len(_extract_losses(history_or_result))
+        dpi = _auto_dpi(n)
+    fig.savefig(p.as_posix(), dpi=int(dpi), bbox_inches="tight")
     plt.close(fig)
     return p.as_posix()
 
@@ -198,6 +249,7 @@ def save_loss_history_plot(
 def save_uncertainty_history_plot(
     history_or_result: Dict[str, Any] | Iterable[Dict[str, Any]],
     path: str,
+    dpi: Optional[int] = None,
     **plot_kwargs: Any,
 ) -> str:
     """Plot GP uncertainty history and save to file."""
@@ -205,7 +257,96 @@ def save_uncertainty_history_plot(
     fig, _ = plot_uncertainty_history(history_or_result, **plot_kwargs)
     p = Path(path)
     p.parent.mkdir(parents=True, exist_ok=True)
-    fig.savefig(p.as_posix(), dpi=120, bbox_inches="tight")
+    if dpi is None:
+        series = _extract_diag_series(history_or_result, "gp_max_std")
+        dpi = _auto_dpi(len(series))
+    fig.savefig(p.as_posix(), dpi=int(dpi), bbox_inches="tight")
+    plt.close(fig)
+    return p.as_posix()
+
+
+def plot_exploration_param_history(
+    history_or_result: Dict[str, Any] | Iterable[Dict[str, Any]],
+    *,
+    ax=None,
+    title: Optional[str] = None,
+    xlabel: str = "Iteration",
+):
+    """Plot exploration parameter history (xi and/or kappa).
+
+    Draws whichever series are present in diag: "xi" (EI/PI/gp_hedge) and/or
+    "kappa" (LCB/UCB).
+    """
+    _, plt = _require_matplotlib()
+
+    xi_series = _extract_diag_series(history_or_result, "xi")
+    ka_series = _extract_diag_series(history_or_result, "kappa")
+    n = max(len(xi_series), len(ka_series))
+    iters = list(range(1, n + 1))
+
+    if ax is None:
+        fig = plt.figure(figsize=(6, 3.2))
+        ax = fig.add_subplot(1, 1, 1)
+    else:
+        fig = ax.figure
+
+    has_xi = any(np.isfinite(v) for v in xi_series if v is not None)
+    has_k = any(np.isfinite(v) for v in ka_series if v is not None)
+    ax.set_xlabel(xlabel)
+
+    if has_xi and has_k:
+        # Two axes: left for xi with known bounds, right for kappa autoscaled
+        XI_MIN_DEFAULT, XI_MAX_DEFAULT = 1e-3, 5e-1
+        finite_xi = np.asarray([v for v in xi_series if np.isfinite(v)], dtype=float)
+        xi_lo = float(np.min(finite_xi)) if finite_xi.size else XI_MIN_DEFAULT
+        xi_hi = float(np.max(finite_xi)) if finite_xi.size else XI_MAX_DEFAULT
+        # Ensure bounds cover defaults
+        xi_lo = min(xi_lo, XI_MIN_DEFAULT)
+        xi_hi = max(xi_hi, XI_MAX_DEFAULT)
+        ax.plot(iters, xi_series, color="#009e73", lw=1.4, label="xi")
+        ax.set_ylabel("xi", color="#009e73")
+        ax.tick_params(axis='y', labelcolor="#009e73")
+        ax.set_ylim(xi_lo, xi_hi)
+
+        ax2 = ax.twinx()
+        ax2.plot(iters, ka_series, color="#cc79a7", lw=1.2, label="kappa")
+        ax2.set_ylabel("kappa", color="#cc79a7")
+        ax2.tick_params(axis='y', labelcolor="#cc79a7")
+        # Legends combined
+        lines1, labels1 = ax.get_legend_handles_labels()
+        lines2, labels2 = ax2.get_legend_handles_labels()
+        ax.legend(lines1 + lines2, labels1 + labels2, loc="best", framealpha=0.8)
+    else:
+        # Single axis case
+        if has_xi:
+            ax.plot(iters, xi_series, color="#009e73", lw=1.4, label="xi")
+            ax.set_ylabel("xi")
+        if has_k:
+            ax.plot(iters, ka_series, color="#cc79a7", lw=1.2, label="kappa")
+            ax.set_ylabel("kappa")
+        ax.legend(loc="best", framealpha=0.8)
+    if title:
+        ax.set_title(title)
+    ax.grid(True, alpha=0.3)
+    fig.tight_layout()
+    return fig, ax
+
+
+def save_exploration_param_history_plot(
+    history_or_result: Dict[str, Any] | Iterable[Dict[str, Any]],
+    path: str,
+    dpi: Optional[int] = None,
+    **plot_kwargs: Any,
+) -> str:
+    """Plot exploration parameter (xi/kappa) history and save to file."""
+    _, plt = _require_matplotlib()
+    fig, _ = plot_exploration_param_history(history_or_result, **plot_kwargs)
+    p = Path(path)
+    p.parent.mkdir(parents=True, exist_ok=True)
+    if dpi is None:
+        n = len(_extract_losses(history_or_result))
+        dpi = _auto_dpi(n)
+    fig.savefig(p.as_posix(), dpi=int(dpi), bbox_inches="tight")
     plt.close(fig)
     return p.as_posix()
 
@@ -214,7 +355,7 @@ def save_history_csv(
     history_or_result: Dict[str, Any] | Iterable[Dict[str, Any]],
     path: str,
     include_running_min: bool = True,
-    diag_keys: Tuple[str, ...] = ("delta_nm", "gp_max_std", "gp_max_var"),
+    diag_keys: Tuple[str, ...] = ("delta_nm", "gp_max_std", "gp_max_var", "xi", "kappa"),
 ) -> str:
     """Save optimisation history to CSV.
 
@@ -295,5 +436,7 @@ __all__ = [
     "save_loss_history_plot",
     "plot_uncertainty_history",
     "save_uncertainty_history_plot",
+    "plot_exploration_param_history",
+    "save_exploration_param_history_plot",
     "save_history_csv",
 ]
