@@ -106,7 +106,7 @@ class CurveObjective:
     def __call__(self,
                  lambda_raw: np.ndarray,
                  s_raw: np.ndarray) -> Tuple[float, Dict[str, Any]]:
-        """Evaluate the objective and return diagnostics.
+        """Evaluate the objective with simple MSE and return diagnostics.
 
         Parameters
         ----------
@@ -122,72 +122,22 @@ class CurveObjective:
             ``delta_nm``, ``lambda_ref``, ``s_ref``, ``s_aligned``, and
             ``target_norm`` useful for logging/plotting.
         """
-        cfg = self.config
-
-        # 1) 重采样到参考网格 + 形状归一
+        # 重采样到参考网格
         s_ref = resample_to_ref(lambda_raw, s_raw, self.lambda_ref)
-        s_norm = normalize_shape(s_ref)
 
-        # 2) 小范围波长对齐（离散平移）
-        # 将 nm 配置转换到与 lambda_ref 相同的单位（米）
-        step = cfg.delta_step_nm * 1e-9
-        delta_max = cfg.delta_max_nm * 1e-9
-        if step <= 0:
-            raise ValueError("delta_step_nm must be positive")
-        if step > delta_max:
-            deltas = np.array([0.0])
-        else:
-            deltas = np.arange(-delta_max, delta_max + 1e-12, step)
-        best_loss = None
-        best_delta = 0.0
-        best_s_aligned = s_norm
+        # 使用简单的 MSE 作为曲线间的距离（不做对齐与归一化/加权）
+        err = s_ref - self.target_ref
+        loss = float(np.mean(err ** 2))
 
-        for dlt in deltas:
-            # 左右边界外推：用端点值延拓（简单稳健）
-            s_shift = np.interp(self.lambda_ref,
-                                self.lambda_ref + dlt,
-                                s_norm,
-                                left=s_norm[0], right=s_norm[-1])
-
-            # 2.1 可选：对齐后再拟合 alpha,beta 以衔接幅度/偏置
-            if cfg.fit_gain_bias:
-                A = np.vstack([s_shift, np.ones_like(s_shift)]).T  # [s, 1]
-                # 最小二乘 [alpha, beta]
-                try:
-                    x, *_ = np.linalg.lstsq(A, self._target_norm, rcond=None)
-                    alpha, beta = x[0], x[1]
-                    s_cmp = alpha * s_shift + beta
-                except np.linalg.LinAlgError:
-                    s_cmp = s_shift
-            else:
-                s_cmp = s_shift
-
-            # 3) 稳健距离（Huber 或 L2）+ 可选权重
-            e = s_cmp - self._target_norm
-            if cfg.use_huber:
-                pointwise = huber_loss(e, cfg.huber_kappa)
-            else:
-                pointwise = e ** 2
-
-            if self._weights is None:
-                loss = float(pointwise.mean())
-            else:
-                loss = float((self._weights * pointwise).sum())
-
-            if (best_loss is None) or (loss < best_loss):
-                best_loss = loss
-                best_delta = float(dlt)
-                best_s_aligned = s_cmp
-
+        # 维持原有诊断信息接口（以便下游可视化或日志不受影响）
         diag = {
-            # 将最优平移量以 nm 汇报
-            "delta_nm": best_delta * 1e9,
+            "delta_nm": 0.0,               # 简化后无平移，对齐量视为 0
             "lambda_ref": self.lambda_ref,
-            "s_ref": s_ref,                # 重采样但未对齐
-            "s_aligned": best_s_aligned,   # 对齐后的谱（已归一化）
-            "target_norm": self._target_norm
+            "s_ref": s_ref,                # 重采样后的信号
+            "s_aligned": s_ref,            # 无对齐，等同于 s_ref
+            "target_norm": self.target_ref # 此处直接返回目标曲线
         }
-        return float(best_loss), diag
+        return loss, diag
 
 def create_objective_from_csv(target_csv_path: str | Path,
                               M: int = 1001,

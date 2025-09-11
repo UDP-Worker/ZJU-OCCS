@@ -42,7 +42,7 @@ def test_skopt_optimizes_within_bounds_and_reduces_loss():
 
     # Run Bayesian optimisation with skopt using hardware bounds
     bo = BayesianOptimizer(
-        hw_obj, dimensions=bounds, base_estimator="GP", acq_func="EI", random_state=42
+        hw_obj, dimensions=bounds, base_estimator="GP", acq_func="gp_hedge", random_state=42
     )
     result = bo.run(n_calls=15, x0=x0)
 
@@ -103,7 +103,7 @@ def test_moderate_channels_show_improvement():
         hw_obj,
         dimensions=bounds,
         base_estimator="GP",
-        acq_func="EI",
+        acq_func="gp_hedge",
         random_state=42,
     )
     result = bo.run(n_calls=40, x0=x0)
