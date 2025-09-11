@@ -1,0 +1,16 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "OCCS"
+version = "0.0.1"
+description = "Optical/Control/Curve Search utilities"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = []
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["OCCS*"]
+exclude = ["tests*", "docs*"]
