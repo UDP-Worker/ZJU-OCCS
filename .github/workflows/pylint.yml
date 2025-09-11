@@ -15,7 +15,6 @@ jobs:
         uses: mamba-org/setup-micromamba@v1
         with:
           environment-file: environment.yml
-          # Ensure the created env name is consistent with the file
           create-args: >-
             -n ZJU-OCCS
           cache-environment: true
@@ -25,7 +24,8 @@ jobs:
         run: |
           micromamba install -y -n ZJU-OCCS -c conda-forge pylint
 
-      - name: Run pylint
+      - name: Run pylint (enforce minimal score)
         shell: bash -l {0}
         run: |
-          micromamba run -n ZJU-OCCS pylint $(git ls-files '*.py')
+          micromamba run -n ZJU-OCCS pylint $(git ls-files '*.py') --fail-under=8.5 \
+          ${RCFILE:+--rcfile="$RCFILE"}
