@@ -264,7 +264,7 @@ class BayesianOptimizer:
                 diag["kappa"] = float(param_value)
 
             # --------- Adaptive exploration update (soft rebuild if changed) ----------
-            improved = (float(best_loss) - float(loss)) > max(0.005 * abs(float(best_loss)), 1e-12)
+            improved = (float(best_loss) - float(loss)) > max(0.01 * abs(float(best_loss)), 1e-12)
             if improved:
                 best_loss = float(loss)
                 no_improve = 0

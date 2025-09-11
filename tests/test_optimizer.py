@@ -159,21 +159,22 @@ def test_more_iterations_help_on_8_channels():
     hw_obj = HardwareObjective(hw, curve_obj)
 
     x0 = np.zeros(dac_size)
+    # fresh optimizer to avoid carry-over state
+    gp = make_gp_base_estimator(dimensions=bounds, noise_floor=1e-6, n_restarts=10)
     bo = BayesianOptimizer(
         hw_obj,
         dimensions=bounds,
-        base_estimator="GP",
-        acq_func="EI",
+        base_estimator=gp,
+        acq_func="gp_hedge",
         random_state=42,
     )
     res10 = bo.run(n_calls=10, x0=x0)
-    # fresh optimizer to avoid carry-over state
-    gp = make_gp_base_estimator(dimensions=bounds, noise_floor=1e-6, n_restarts=10)
+
     bo2 = BayesianOptimizer(
         hw_obj,
         dimensions=bounds,
         base_estimator=gp,
-        acq_func="EI",
+        acq_func="gp_hedge",
         random_state=42,
     )
     res40 = bo2.run(n_calls=40, x0=x0)
@@ -199,5 +200,5 @@ def test_more_iterations_help_on_8_channels():
         (out_dir / "loss_curve_8ch_40calls_cmp.png").as_posix(),
         title="8-ch 40 calls",
     )
-    save_history_csv(res10, (out_dir / "log_8ch_10calls.csv").as_posix())
-    save_history_csv(res40, (out_dir / "log_8ch_40calls.csv").as_posix())
+    save_history_csv(res10, (out_dir / "log_8ch_10calls_cmp.csv").as_posix())
+    save_history_csv(res40, (out_dir / "log_8ch_40calls_cmp.csv").as_posix())
