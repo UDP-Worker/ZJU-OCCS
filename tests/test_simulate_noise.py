@@ -1,9 +1,12 @@
+"""Statistical sanity checks for the simulator's noise handling."""
+
 import numpy as np
 
-from new_bayes_optimization.simulate import get_response
+from OCCS.simulate import get_response
 
 
 def test_zero_noise_equals_deterministic():
+    """Zero noise should reproduce the deterministic response exactly."""
     wavelengths = np.linspace(0.0, 1.0, 10)
     volts = np.array([0.5, -0.2, 0.3])
     resp_det = get_response(wavelengths, volts)
@@ -12,6 +15,7 @@ def test_zero_noise_equals_deterministic():
 
 
 def test_reproducible_with_seed():
+    """Using the same seed yields identical noisy outputs."""
     wavelengths = np.linspace(0.0, 1.0, 20)
     volts = np.array([0.1, 0.2, 0.3])
     noise = np.array([0.01, 0.02, 0.03])
@@ -23,6 +27,7 @@ def test_reproducible_with_seed():
 
 
 def test_noise_statistics_match_expectation():
+    """Sample mean and variance should match analytical expectations."""
     wavelengths = np.linspace(0.0, 1.0, 50)
     volts = np.zeros(3)
     noise_std = np.array([0.1, 0.2, 0.3])
