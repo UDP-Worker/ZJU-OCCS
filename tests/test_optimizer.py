@@ -3,6 +3,7 @@
 import os
 import sys
 import numpy as np
+from OCCS.optimizer.estimator import make_gp_base_estimator
 
 # Ensure package import from repo root
 THIS_DIR = os.path.dirname(__file__)
@@ -41,8 +42,9 @@ def test_skopt_optimizes_within_bounds_and_reduces_loss():
     y0, _ = hw_obj(x0)
 
     # Run Bayesian optimisation with skopt using hardware bounds
+    gp = make_gp_base_estimator(dimensions=bounds, noise_floor=1e-6, n_restarts=10)
     bo = BayesianOptimizer(
-        hw_obj, dimensions=bounds, base_estimator="GP", acq_func="gp_hedge", random_state=42
+        hw_obj, dimensions=bounds, base_estimator=gp, acq_func="gp_hedge", random_state=42
     )
     result = bo.run(n_calls=15, x0=x0)
 
@@ -98,11 +100,11 @@ def test_moderate_channels_show_improvement():
 
     x0 = np.zeros(dac_size)
     y0, _ = hw_obj(x0)
-
+    gp = make_gp_base_estimator(dimensions=bounds, noise_floor=1e-6, n_restarts=10)
     bo = BayesianOptimizer(
         hw_obj,
         dimensions=bounds,
-        base_estimator="GP",
+        base_estimator=gp,
         acq_func="gp_hedge",
         random_state=42,
     )
@@ -155,10 +157,11 @@ def test_more_iterations_help_on_8_channels():
     )
     res10 = bo.run(n_calls=10, x0=x0)
     # fresh optimizer to avoid carry-over state
+    gp = make_gp_base_estimator(dimensions=bounds, noise_floor=1e-6, n_restarts=10)
     bo2 = BayesianOptimizer(
         hw_obj,
         dimensions=bounds,
-        base_estimator="GP",
+        base_estimator=gp,
         acq_func="EI",
         random_state=42,
     )
