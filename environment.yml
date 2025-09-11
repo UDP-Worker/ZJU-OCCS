@@ -1,18 +1,26 @@
 name: ZJU-OCCS
 channels:
-  - defaults
   - conda-forge
-  - https://repo.anaconda.com/pkgs/main
-  - https://repo.anaconda.com/pkgs/r
-  - https://repo.anaconda.com/pkgs/msys2
+channel_priority: strict
+
 dependencies:
   - python=3.10
-  - matplotlib
-  - notebook
-  - tqdm
+  - pip
+
+  # ---- Core scientific stack ----
+  - numpy
+  - scipy
   - scikit-learn
-  - fastapi
-  - uvicorn
-  - python-multipart
+  - scikit-optimize
+
+  # ---- Plotting without Qt ----
+  - matplotlib-base
+
+  # ---- Dev / CI tools ----
+  - pylint
   - pytest
 
+
+  # ---- Install your package in editable mode so "import OCCS" works in CI ----
+  - pip:
+      - -e .

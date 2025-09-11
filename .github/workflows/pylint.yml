@@ -1,0 +1,31 @@
+name: Pylint
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  pylint:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup micromamba (create env from environment.yml)
+        uses: mamba-org/setup-micromamba@v1
+        with:
+          environment-file: environment.yml
+          create-args: >-
+            -n ZJU-OCCS
+          cache-environment: true
+          cache-downloads: true
+
+      - name: Install pylint in the environment
+        run: |
+          micromamba install -y -n ZJU-OCCS -c conda-forge pylint
+
+      - name: Run pylint (enforce minimal score)
+        shell: bash -l {0}
+        run: |
+          micromamba run -n ZJU-OCCS pylint $(git ls-files '*.py') --fail-under=8.5 \
+          ${RCFILE:+--rcfile="$RCFILE"}

@@ -1,7 +1,9 @@
+"""Tests for the MockHardware adapter and simulator integration."""
+
 import numpy as np
 
-from new_bayes_optimization.connector import MockHardware
-from new_bayes_optimization.simulate import get_response
+from OCCS.connector import MockHardware
+from OCCS.simulate import get_response
 
 
 def test_get_response_shape_and_linearity():
@@ -36,6 +38,5 @@ def test_mock_hardware_noise_injection():
     hardware.apply_voltage(volts)
     resp1 = hardware.get_simulated_response()
     resp2 = hardware.get_simulated_response()
-    # successive reads should differ due to injected noise
+    # Successive reads should differ due to injected noise
     assert not np.allclose(resp1, resp2)
-
