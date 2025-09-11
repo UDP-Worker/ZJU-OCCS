@@ -80,11 +80,16 @@ def test_moderate_channels_show_improvement():
 
     Keep runtime modest: use a limited number of calls and a loose threshold.
     """
-    rng = np.random.default_rng(0)
     lam = np.linspace(1.55e-6, 1.56e-6, 200)
     dac_size = 8
-    # Fixed true vector for determinism
-    true_volts = rng.uniform(-0.8, 0.8, size=dac_size)
+    # 固定的真实参数（源自 rng(seed=0) 的取值，显式写死便于对比）
+    true_volts = np.array(
+        [
+            -0.8, -0.6, -0.4, -0.2,
+            0.2, 0.4,  0.6, 0.8,
+        ],
+        dtype=float,
+    )
     bounds = [(-1.0, 1.0)] * dac_size
 
     target = get_response(lam, true_volts)
@@ -93,7 +98,7 @@ def test_moderate_channels_show_improvement():
         dac_size=dac_size,
         wavelength=lam,
         noise_std=None,
-        rng=rng,
+        rng=np.random.default_rng(0),
         voltage_bounds=bounds,
     )
     hw_obj = HardwareObjective(hw, curve_obj)
@@ -130,10 +135,16 @@ def test_moderate_channels_show_improvement():
 
 def test_more_iterations_help_on_8_channels():
     """With 8 channels, more BO calls should yield lower loss (objective-based)."""
-    rng = np.random.default_rng(1)
     lam = np.linspace(1.55e-6, 1.56e-6, 200)
     dac_size = 8
-    true_volts = rng.uniform(-0.8, 0.8, size=dac_size)
+    # 固定真实参数（源自 rng(seed=1) 的取值，显式写死便于对比）
+    true_volts = np.array(
+        [
+            -0.8, -0.6, -0.4, -0.2,
+            0.2, 0.4,  0.6, 0.8,
+        ],
+        dtype=float,
+    )
     bounds = [(-1.0, 1.0)] * dac_size
 
     target = get_response(lam, true_volts)
@@ -142,7 +153,7 @@ def test_more_iterations_help_on_8_channels():
         dac_size=dac_size,
         wavelength=lam,
         noise_std=None,
-        rng=rng,
+        rng=np.random.default_rng(1),
         voltage_bounds=bounds,
     )
     hw_obj = HardwareObjective(hw, curve_obj)
