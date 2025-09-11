@@ -55,18 +55,16 @@ class BayesianOptimizer:
         # Keep a copy of constructor kwargs so we can "soft rebuild" Optimizer with updated
         # acq_func_kwargs while preserving all other settings (base_estimator, seeds, etc).
         self._skopt_kwargs: Dict[str, Any] = dict(skopt_kwargs)  # shallow copy is enough
-        self._acq_func: str = str(self._skopt_kwargs.get("acq_func", "EI")).upper()
-
-        # Normalise some aliases (skopt accepts "LCB" and "UCB"—treat both as kappa-based)
-        if self._acq_func == "UCB":
-            self._acq_func = "LCB"
+        # Canonicalize acquisition function name to what skopt expects
+        self._acq_func: str = self._canonicalize_acq_func(self._skopt_kwargs.get("acq_func", "EI"))
+        # Ensure kwargs carry canonical form to keep behaviour stable across (re)builds
+        self._skopt_kwargs["acq_func"] = self._acq_func
 
         self._opt: Optional[Optimizer] = None
         if self.dimensions is not None:
             # Ensure acq_func is explicitly set (keeps behaviour stable across soft rebuilds)
             if "acq_func" not in self._skopt_kwargs:
-                self._skopt_kwargs["acq_func"] = "EI"
-                self._acq_func = "EI"
+                self._skopt_kwargs["acq_func"] = self._acq_func or "EI"
             self._opt = Optimizer(dimensions=self.dimensions, **self._skopt_kwargs)
 
     # ------------------ Small helpers for soft rebuilding & exploration param ------------
@@ -74,6 +72,30 @@ class BayesianOptimizer:
         """Return a shallow copy of current acq_func_kwargs (may be absent)."""
         ak = self._skopt_kwargs.get("acq_func_kwargs", None)
         return dict(ak) if isinstance(ak, dict) else {}
+
+    def _canonicalize_acq_func(self, acq: Any) -> str:
+        """Map various spellings/aliases to skopt-accepted acquisition names.
+
+        Skopt accepted values (as of tests):
+        - "gp_hedge" (lowercase only)
+        - "EI", "PI", "LCB", "MES", "PVRS"
+        - "EIps", "PIps"
+        Also treat "UCB" as alias for "LCB" to select the kappa branch.
+        """
+        s = str(acq)
+        sl = s.lower()
+        if sl == "gp_hedge":
+            return "gp_hedge"
+        if sl == "eips":
+            return "EIps"
+        if sl == "pips":
+            return "PIps"
+        su = s.upper()
+        if su == "UCB":
+            return "LCB"
+        if su in {"EI", "PI", "LCB", "MES", "PVRS"}:
+            return su
+        return s
 
     def _choose_param_name(self) -> str:
         """
@@ -83,7 +105,7 @@ class BayesianOptimizer:
         """
         if self._acq_func in ("LCB",):
             return "kappa"
-        # For EI / PI / GP_HEDGE → use xi
+        # For EI / PI / gp_hedge → use xi
         return "xi"
 
     def _default_param_value(self, name: str) -> float:
@@ -101,6 +123,9 @@ class BayesianOptimizer:
         merged.update(new_acq_kwargs or {})
         kwargs["acq_func_kwargs"] = merged
         kwargs["acq_func"] = self._acq_func  # keep stable across rebuilds
+        # We are backfilling full history via tell(...), so skip skopt's initial design
+        # to avoid repeating the same initial samples after each soft rebuild.
+        kwargs["n_initial_points"] = 0
         return Optimizer(dimensions=self.dimensions, **kwargs)
 
     @property
@@ -283,7 +308,7 @@ class BayesianOptimizer:
                     ak = self._get_acq_kwargs()
                     ak[param_name] = float(new_val)
                     # If gp_hedge，提供两者也无害（LCB 分支只用 kappa；EI/PI 只用 xi）
-                    if self._acq_func == "GP_HEDGE":
+                    if self._acq_func == "gp_hedge":
                         # keep both keys present for hedge mixtures
                         ak.setdefault("xi", float(new_val))
                         ak.setdefault("kappa", 1.96)  # keep a gentle default for UCB arm
