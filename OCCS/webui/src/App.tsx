@@ -65,13 +65,18 @@ export default function App() {
       try {
         const st = await getSessionStatus(sessionId)
         setStatus({ running: !!st.running, iter: st.iter ?? 0, best_loss: st.best_loss ?? null })
+        if (st.x && Array.isArray(st.x)) setBestVolts(st.x as number[])
         // 拉取一次历史，用于更新 loss 曲线
         const hist = await getHistory(sessionId)
         const losses = (hist.history || []).map((h: any) => h.loss).filter((v: any) => typeof v === 'number')
         if (losses.length) setLosses(losses)
-        // 可选：运行态时刷新波形
+        // 最新 x 作为当前电压
+        const last = (hist.history || []).slice(-1)[0]
+        if (last && last.x && Array.isArray(last.x)) setCurrVolts(last.x as number[])
+        // 可选：运行态时刷新波形与当前电压
         if (st.running) {
           try { setWave(await getResponse(sessionId)) } catch {}
+          try { const vv = await getVoltages(sessionId); setCurrVolts(vv.volts) } catch {}
         }
       } catch {}
       timer = setTimeout(tick, 1000)
@@ -102,6 +107,8 @@ export default function App() {
       } else if (msg.type === 'progress') {
         setLosses((l) => [...l, msg.loss])
         if (msg.x && Array.isArray(msg.x)) setCurrVolts(msg.x)
+        const bx: any = (msg as any).best_x
+        if (bx && Array.isArray(bx)) setBestVolts(bx as number[])
       } else if (msg.type === 'waveform') {
         setWave({ lambda: msg.lambda, signal: msg.signal, target: msg.target })
       }

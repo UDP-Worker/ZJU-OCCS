@@ -205,6 +205,7 @@ class OptimizerSession:
                         "kappa": float(diag0.get("kappa", np.nan)) if "kappa" in diag0 else None,
                         "gp_max_std": float(diag0.get("gp_max_std", np.nan)) if "gp_max_std" in diag0 else None,
                         "x": list(map(float, np.asarray(diag0.get("volts", x0_arr), dtype=float))),
+                        "best_x": list(map(float, np.asarray(self.best_x))) if self.best_x is not None else None,
                     })
 
                 # Main loop
@@ -236,6 +237,7 @@ class OptimizerSession:
                         "kappa": float(diag.get("kappa", np.nan)) if "kappa" in diag else None,
                         "gp_max_std": float(diag.get("gp_max_std", np.nan)) if "gp_max_std" in diag else None,
                         "x": list(map(float, x_vec)),
+                        "best_x": list(map(float, np.asarray(self.best_x))) if self.best_x is not None else None,
                     })
 
                 self._emit({
