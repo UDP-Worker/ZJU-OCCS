@@ -1,7 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
-import { BackendSelector } from './components/BackendSelector'
-import { SessionForm } from './components/SessionForm'
-import { VoltagePanel } from './components/VoltagePanel'
+// Components below are wired inline for now; placeholders kept for future use
 import { WaveformChart } from './components/WaveformChart'
 import { LossChart } from './components/LossChart'
 import { OptimizerControls } from './components/OptimizerControls'
@@ -26,6 +24,7 @@ export default function App() {
   const [nCalls, setNCalls] = useState(5)
 
   const wsRef = useRef<WebSocket | null>(null)
+  const [wsReady, setWsReady] = useState(false)
 
   useEffect(() => {
     getBackends().then(setBackends).catch(() => setBackends([{ name: 'mock', available: true }]))
@@ -45,9 +44,12 @@ export default function App() {
     const payload = { backend, dac_size: dac, wavelength: { start: wlStart, stop: wlStop, M: wlM } }
     const r = await createSession(payload)
     setSessionId(r.session_id)
+    // reset default volt text to match dac size
+    setVoltsText(Array.from({ length: dac }).fill('0').join(','))
     // connect WS
     const ws = connectSessionStream(r.session_id)
     wsRef.current = ws
+    ws.onopen = () => setWsReady(true)
     ws.onmessage = (ev) => {
       const msg = JSON.parse(ev.data) as StreamMessage
       if (msg.type === 'status') {
@@ -58,7 +60,14 @@ export default function App() {
         setWave({ lambda: msg.lambda, signal: msg.signal, target: msg.target })
       }
     }
-    ws.onclose = () => { if (wsRef.current === ws) wsRef.current = null }
+    ws.onclose = () => { if (wsRef.current === ws) wsRef.current = null; setWsReady(false) }
+    // fetch initial waveform snapshot
+    try {
+      const wf = await getResponse(r.session_id)
+      setWave(wf)
+    } catch {
+      // ignore
+    }
   }
 
   async function onApplyVoltages() {
@@ -79,6 +88,8 @@ export default function App() {
     if (!sessionId) return
     await stopOptimize(sessionId)
   }
+
+  const connected = wsReady
 
   return (
     <div style={{ fontFamily: 'system-ui, sans-serif', padding: 16 }}>
@@ -119,10 +130,10 @@ export default function App() {
 
       <div style={{ display: 'flex', gap: 16 }}>
         <div style={{ flex: 1 }}>
-          <WaveformChart />
+          <WaveformChart data={wave} />
         </div>
         <div style={{ flex: 1 }}>
-          <LossChart />
+          <LossChart losses={losses} />
         </div>
       </div>
 
@@ -145,7 +156,7 @@ export default function App() {
         </div>
       </fieldset>
 
-      <StatusBar />
+      <StatusBar connected={!!connected} sessionId={sessionId} />
     </div>
   )
 }
