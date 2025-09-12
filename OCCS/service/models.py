@@ -38,22 +38,27 @@ def normalise_bounds(
 ) -> Optional[List[Tuple[float, float]]]:
     if bounds is None:
         return None
-    # Single pair broadcast
-    if isinstance(bounds, tuple) and len(bounds) == 2 and not any(
-        isinstance(b, (list, tuple)) and len(b) == 2  # type: ignore[truthy-bool]
-        for b in bounds
+    # Treat a 2-element sequence of scalars (tuple or list) as a single pair to broadcast.
+    try:
+        seq0 = list(bounds)  # type: ignore[arg-type]
+    except TypeError as exc:
+        raise ValueError("bounds must be (low, high) or sequence of such") from exc
+    if len(seq0) == 2 and not (
+        (isinstance(seq0[0], (list, tuple)) and len(seq0[0]) == 2)
+        or (isinstance(seq0[1], (list, tuple)) and len(seq0[1]) == 2)
     ):
-        lo, hi = float(bounds[0]), float(bounds[1])
+        lo, hi = float(seq0[0]), float(seq0[1])
         if not np.isfinite(lo) or not np.isfinite(hi) or lo >= hi:
             raise ValueError("Invalid bounds: expected finite low < high.")
         return [(lo, hi) for _ in range(int(dac_size))]
-    seq = list(bounds)  # type: ignore[arg-type]
-    if len(seq) != int(dac_size):
+
+    # Otherwise, expect a sequence of (low, high) pairs with length == dac_size
+    if len(seq0) != int(dac_size):
         raise ValueError(
-            f"bounds length mismatch: expected {int(dac_size)}, got {len(seq)}"
+            f"bounds length mismatch: expected {int(dac_size)}, got {len(seq0)}"
         )
     norm: List[Tuple[float, float]] = []
-    for i, pair in enumerate(seq):
+    for i, pair in enumerate(seq0):
         if not (isinstance(pair, (list, tuple)) and len(pair) == 2):
             raise ValueError(f"bounds[{i}] must be a (low, high) pair")
         lo, hi = float(pair[0]), float(pair[1])
@@ -64,4 +69,3 @@ def normalise_bounds(
 
 
 __all__ = ["WavelengthSpec", "normalise_bounds"]
-

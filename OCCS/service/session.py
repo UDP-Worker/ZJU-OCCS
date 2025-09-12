@@ -9,6 +9,9 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from typing import Optional, Sequence, Tuple, List, Any, Dict, Iterable
+import threading
+import asyncio
+import time
 from pathlib import Path
 import numpy as np
 
@@ -31,6 +34,14 @@ class OptimizerSession:
     hw_objective: HardwareObjective = field(init=False)
     optimizer: BayesianOptimizer = field(init=False)
     history: List[Dict[str, Any]] = field(default_factory=list, init=False)
+    running: bool = field(default=False, init=False)
+    _thread: Optional[threading.Thread] = field(default=None, init=False)
+    _stop_evt: threading.Event = field(default_factory=threading.Event, init=False)
+    _subscribers: List[Tuple[asyncio.AbstractEventLoop, "asyncio.Queue[Dict[str, Any]]"]] = field(
+        default_factory=list, init=False
+    )
+    best_loss: Optional[float] = field(default=None, init=False)
+    best_x: Optional[np.ndarray] = field(default=None, init=False)
 
     def __post_init__(self) -> None:
         # Create hardware
@@ -100,8 +111,155 @@ class OptimizerSession:
 
     def close(self) -> None:
         # Placeholder for resource cleanup (if needed for real hardware)
-        pass
+        self.stop_optimize()
+
+    # ---- Realtime streaming helpers ----
+    def add_subscriber(self, loop: asyncio.AbstractEventLoop, queue: "asyncio.Queue[Dict[str, Any]]") -> None:
+        self._subscribers.append((loop, queue))
+
+    def remove_subscriber(self, queue: "asyncio.Queue[Dict[str, Any]]") -> None:
+        self._subscribers = [(lp, q) for (lp, q) in self._subscribers if q is not queue]
+
+    def _emit(self, event: Dict[str, Any]) -> None:
+        # Thread-safe enqueue into each subscriber's asyncio.Queue
+        for loop, q in list(self._subscribers):
+            try:
+                asyncio.run_coroutine_threadsafe(q.put(event), loop)
+            except Exception:
+                # Drop subscriber on error
+                try:
+                    self._subscribers.remove((loop, q))
+                except ValueError:
+                    pass
+
+    # ---- Optimization control (Phase 2) ----
+    def start_optimize(
+        self,
+        *,
+        n_calls: int,
+        x0: Optional[Iterable[float]] = None,
+        acq_func: Optional[str] = None,
+        random_state: Optional[int] = None,
+    ) -> None:
+        if self.running:
+            raise RuntimeError("Optimization already running for this session")
+
+        # Rebuild optimizer if user supplied acq_func or random_state
+        if acq_func is not None or random_state is not None:
+            kw = dict(self.optimizer_kwargs)
+            if acq_func is not None:
+                kw["acq_func"] = acq_func
+            if random_state is not None:
+                kw["random_state"] = int(random_state)
+            self.optimizer = BayesianOptimizer(
+                self.hw_objective,
+                dimensions=getattr(self.hardware, "skopt_dimensions", None) or self.bounds,
+                **kw,
+            )
+            self.optimizer_kwargs = kw
+
+        self._stop_evt.clear()
+        self.running = True
+
+        def _runner() -> None:
+            try:
+                # Initial status event
+                self._emit({
+                    "type": "status",
+                    "running": True,
+                    "iter": len(self.history),
+                    "best_loss": (
+                        float(np.min([h.get("loss", np.inf) for h in self.history]))
+                        if self.history else None
+                    ),
+                })
+
+                local_best = float("inf") if self.best_loss is None else float(self.best_loss)
+                if x0 is not None:
+                    # Ensure ndarray
+                    x0_arr = np.asarray(list(x0), dtype=float)
+                    y0, diag0 = self.optimizer.hardware_objective(x0_arr)
+                    self.optimizer.observe(x0_arr, y0)
+                    item0 = {"x": x0_arr, "loss": float(y0), "diag": diag0}
+                    self.history.append(item0)
+                    if y0 < local_best:
+                        local_best = float(y0)
+                        self.best_loss = local_best
+                        self.best_x = x0_arr
+                    # waveform event
+                    lam = np.asarray(diag0.get("lambda_ref", self.wavelength), dtype=float)
+                    s_ref = np.asarray(diag0.get("s_ref", []), dtype=float)
+                    t_ref = np.asarray(diag0.get("target_norm", []), dtype=float)
+                    self._emit({
+                        "type": "waveform",
+                        "lambda": lam.tolist(),
+                        "signal": s_ref.tolist() if s_ref.size else [],
+                        "target": t_ref.tolist() if t_ref.size else [],
+                    })
+                    # progress event
+                    self._emit({
+                        "type": "progress",
+                        "iter": len(self.history),
+                        "loss": float(y0),
+                        "running_min": local_best,
+                        "xi": float(diag0.get("xi", np.nan)) if "xi" in diag0 else None,
+                        "kappa": float(diag0.get("kappa", np.nan)) if "kappa" in diag0 else None,
+                        "gp_max_std": float(diag0.get("gp_max_std", np.nan)) if "gp_max_std" in diag0 else None,
+                        "x": list(map(float, np.asarray(diag0.get("volts", x0_arr), dtype=float))),
+                    })
+
+                # Main loop
+                for _ in range(int(n_calls)):
+                    if self._stop_evt.is_set():
+                        break
+                    loss, diag = self.optimizer.step()
+                    x_vec = np.asarray(diag.get("volts", self.hardware.read_voltage()), dtype=float)
+                    self.history.append({"x": x_vec, "loss": float(loss), "diag": diag})
+                    if float(loss) < local_best:
+                        local_best = float(loss)
+                        self.best_loss = local_best
+                        self.best_x = x_vec
+                    # Waveform event from diag
+                    lam = np.asarray(diag.get("lambda_ref", self.wavelength), dtype=float)
+                    s_ref = np.asarray(diag.get("s_ref", []), dtype=float)
+                    t_ref = np.asarray(diag.get("target_norm", []), dtype=float)
+                    self._emit({
+                        "type": "waveform",
+                        "lambda": lam.tolist(),
+                        "signal": s_ref.tolist() if s_ref.size else [],
+                        "target": t_ref.tolist() if t_ref.size else [],
+                    })
+                    # Progress event
+                    self._emit({
+                        "type": "progress",
+                        "iter": len(self.history),
+                        "loss": float(loss),
+                        "running_min": local_best,
+                        "xi": float(diag.get("xi", np.nan)) if "xi" in diag else None,
+                        "kappa": float(diag.get("kappa", np.nan)) if "kappa" in diag else None,
+                        "gp_max_std": float(diag.get("gp_max_std", np.nan)) if "gp_max_std" in diag else None,
+                        "x": list(map(float, x_vec)),
+                    })
+
+                # Done/status
+                self._emit({"type": "status", "running": False, "iter": len(self.history), "best_loss": (self.best_loss if self.best_loss is not None else None)})
+                self._emit({"type": "done", "best_loss": (self.best_loss if self.best_loss is not None else None)})
+            except Exception as e:
+                self._emit({"type": "error", "message": str(e)})
+            finally:
+                self.running = False
+
+        self._thread = threading.Thread(target=_runner, name="opt-runner", daemon=True)
+        self._thread.start()
+
+    def stop_optimize(self) -> None:
+        if not self.running:
+            return
+        self._stop_evt.set()
+        t = self._thread
+        if t is not None:
+            t.join(timeout=5.0)
+        self.running = False
 
 
 __all__ = ["OptimizerSession"]
-

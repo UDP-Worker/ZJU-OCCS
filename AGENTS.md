@@ -145,11 +145,11 @@
 - [x] `pyproject.toml`：添加 console-script `occs-web = OCCS.cli:web_main`
 - [x] 单元测试：`tests/test_service_hardware.py`、`tests/test_service_session.py`、`tests/test_cli_web.py`
 
-### Phase 2 REST/WS 接口与健壮性（进行中）
-- [ ] REST：`/api/backends`、`/api/session`（POST/GET/DELETE）、`/voltages`、`/response`、`/optimize/start|stop`、`/history`
-- [ ] WS：`/api/session/{id}/stream`（progress/waveform/status/done/error）
-- [ ] 校验与错误处理（bounds、维度、文件路径）
-- [ ] CORS/跨域与简单鉴权（可选）
+### Phase 2 REST/WS 接口与健壮性（已完成）
+- [x] REST：`/api/backends`、`/api/session`（POST/GET/DELETE）、`/voltages`、`/response`、`/optimize/start|stop`、`/history`
+- [x] WS：`/api/session/{id}/stream`（progress/waveform/status/done/error）
+- [x] 校验与错误处理（bounds、维度、文件路径）
+- [x] CORS/跨域与简单鉴权（可选；已启用 CORS，鉴权暂不启用）
 
  ### Phase 3 前端工程
  - [ ] Vite + React + TS 脚手架（`OCCS/webui`）
