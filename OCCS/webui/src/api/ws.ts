@@ -7,7 +7,9 @@ export type StreamMessage =
 
 export function connectSessionStream(sessionId: string): WebSocket {
   const proto = location.protocol === 'https:' ? 'wss' : 'ws'
-  const ws = new WebSocket(`${proto}://${location.host}/api/session/${sessionId}/stream`)
-  return ws
+  // In dev (Vite on 5173), directly target the backend to avoid proxy WS issues
+  const port = location.port
+  const host = port === '5173' ? '127.0.0.1:8000' : location.host
+  const url = `${proto}://${host}/api/session/${sessionId}/stream`
+  return new WebSocket(url)
 }
-

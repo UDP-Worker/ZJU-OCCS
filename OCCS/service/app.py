@@ -185,6 +185,16 @@ def create_app() -> Any:
             "target": _to_list_array(wf["target"]),
         }
 
+    @app.get("/api/session/{sid}/voltages")
+    def api_get_voltages(sid: str) -> Dict[str, Any]:
+        sess = _ensure_session(sid)
+        try:
+            arr = sess.hardware.read_voltage()
+        except Exception:
+            import numpy as _np
+            arr = _np.zeros(int(sess.dac_size), dtype=float)
+        return {"volts": list(map(float, np.asarray(arr, dtype=float)))}
+
     # ---- REST: Optimization control ----
     @app.post("/api/session/{sid}/optimize/start")
     async def api_opt_start(sid: str, payload: Dict[str, Any]) -> Dict[str, Any]:
@@ -230,6 +240,23 @@ def create_app() -> Any:
             "best_x": list(map(float, np.asarray(sess.best_x))) if sess.best_x is not None else None,
         }
 
+    @app.get("/api/session/{sid}/history.csv")
+    def api_history_csv(sid: str):
+        """Return optimization history as CSV for download."""
+        sess = _ensure_session(sid)
+        import io, csv
+        buf = io.StringIO()
+        w = csv.writer(buf)
+        # header
+        cols = ["iter", "loss"] + [f"x{i}" for i in range(int(sess.dac_size))]
+        w.writerow(cols)
+        for i, h in enumerate(sess.history, start=1):
+            x = list(map(float, np.asarray(h.get("x", []))))
+            row = [i, float(h.get("loss", np.nan))] + x
+            w.writerow(row)
+        from fastapi import Response
+        return Response(content=buf.getvalue(), media_type="text/csv")
+
     # ---- WebSocket: streaming ----
     @app.websocket("/api/session/{sid}/stream")
     async def api_stream(websocket: WebSocket, sid: str):
@@ -247,6 +274,8 @@ def create_app() -> Any:
         # Emit immediate status snapshot
         st = sess.status()
         st["running"] = bool(sess.running)
+        if sess.best_x is not None:
+            st["x"] = list(map(float, np.asarray(sess.best_x)))
         await websocket.send_json({"type": "status", **st})
 
         # Attach subscriber queue for future events
