@@ -2,6 +2,7 @@ __pycache__/
 **/.idea/
 **/dist/
 *.egg-info/
+**/node_modules/
 
 *.csv
 *.png

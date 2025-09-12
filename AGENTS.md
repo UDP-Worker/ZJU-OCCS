@@ -152,10 +152,10 @@
 - [x] CORS/跨域与简单鉴权（可选；已启用 CORS，鉴权暂不启用）
 
  ### Phase 3 前端工程
- - [ ] Vite + React + TS 脚手架（`OCCS/webui`）
- - [ ] API 客户端与 WS Hook
- - [ ] 组件：`BackendSelector`、`SessionForm`、`VoltagePanel`、`WaveformChart`、`LossChart`、`OptimizerControls`、`StatusBar`
- - [ ] 主题与基础样式
+ - [x] Vite + React + TS 脚手架（`OCCS/webui`）
+ - [x] API 客户端与 WS Hook
+ - [x] 组件：`BackendSelector`、`SessionForm`、`VoltagePanel`、`WaveformChart`、`LossChart`、`OptimizerControls`、`StatusBar`
+ - [x] 主题与基础样式
 
  ### Phase 4 联调与交付
  - [ ] 手动电压 → 波形展示流打通

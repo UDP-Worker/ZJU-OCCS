@@ -1,0 +1,19 @@
+:root {
+  --bg: #0b0d12;
+  --fg: #e6e9ef;
+  --muted: #98a2b3;
+  --card: #11151c;
+  --accent: #5b9cf6;
+}
+
+* { box-sizing: border-box; }
+html, body, #root { height: 100%; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--fg);
+}
+h1, h2, h3 { margin: 0 0 8px; }
+fieldset { border: 1px solid #2a2f3a; margin: 12px 0; padding: 8px; }
+input, select, button { margin: 4px; }
+

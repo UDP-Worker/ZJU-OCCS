@@ -266,6 +266,18 @@ def create_app() -> Any:
                 pass
             return
 
+    # ---- Static: mount built front-end if available ----
+    try:
+        from starlette.staticfiles import StaticFiles  # type: ignore
+        import os
+        from pathlib import Path
+        webui_dist = Path(__file__).resolve().parent.parent / "webui" / "dist"
+        if webui_dist.exists() and webui_dist.is_dir():
+            app.mount("/", StaticFiles(directory=str(webui_dist), html=True), name="webui")
+    except Exception:
+        # Static hosting is optional for development
+        pass
+
     return app
 
 
