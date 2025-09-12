@@ -10,6 +10,9 @@ readme = "README.md"
 requires-python = ">=3.10"
 dependencies = []
 
+[project.scripts]
+occs-web = "OCCS.cli:web_main"
+
 [tool.setuptools.packages.find]
 where = ["."]
 include = ["OCCS*"]

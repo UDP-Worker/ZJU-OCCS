@@ -134,21 +134,22 @@
  ### Phase 0 文档与准备
  - [x] 创建 AGENTS.md（本文件）
 
- ### Phase 1 后端框架
- - [ ] 新建 `OCCS/service` 目录与模块骨架
- - [ ] `hardware.py`：`list_backends()`、`make_hardware()`（统一 `get_response()` 已就绪）
- - [ ] （可选）`HardwareAdapter`：若需附加保护/度量再补充
- - [ ] `models.py`：请求/响应/事件 Pydantic 模型
- - [ ] `session.py`：`OptimizerSession` 逐步优化与事件推送
- - [ ] `app.py`：FastAPI、路由、静态托管、会话管理
- - [ ] `OCCS/cli.py`：`occs-web` 入口（`uvicorn` 启动）
- - [ ] `pyproject.toml`：添加 console-script `occs-web = OCCS.cli:web_main`
+### Phase 1 后端框架（已完成）
+- [x] 新建 `OCCS/service` 目录与模块骨架
+- [x] `hardware.py`：`list_backends()`、`make_hardware()`（统一 `get_response()` 已就绪）
+- [x] （可选）`HardwareAdapter`：保留为可选增强（未必需）
+- [x] `models.py`：轻量 schema/归一化工具（Phase 1 以 dataclass/函数实现）
+- [x] `session.py`：`OptimizerSession`（创建硬件与目标、手动电压、读取波形、基本状态）
+- [x] `app.py`：`create_app()` 工厂 + `/api/health`（FastAPI 懒导入）
+- [x] `OCCS/cli.py`：`occs-web` 入口（缺少 uvicorn/fastapi 时给出友好提示并返回错误码）
+- [x] `pyproject.toml`：添加 console-script `occs-web = OCCS.cli:web_main`
+- [x] 单元测试：`tests/test_service_hardware.py`、`tests/test_service_session.py`、`tests/test_cli_web.py`
 
- ### Phase 2 接口与健壮性
- - [ ] REST：`/api/backends`、`/api/session`（POST/GET/DELETE）、`/voltages`、`/response`、`/optimize/start|stop`、`/history`
- - [ ] WS：`/api/session/{id}/stream`（progress/waveform/status/done/error）
- - [ ] 校验与错误处理（bounds、维度、文件路径）
- - [ ] CORS/跨域与简单鉴权（可选）
+### Phase 2 REST/WS 接口与健壮性（进行中）
+- [ ] REST：`/api/backends`、`/api/session`（POST/GET/DELETE）、`/voltages`、`/response`、`/optimize/start|stop`、`/history`
+- [ ] WS：`/api/session/{id}/stream`（progress/waveform/status/done/error）
+- [ ] 校验与错误处理（bounds、维度、文件路径）
+- [ ] CORS/跨域与简单鉴权（可选）
 
  ### Phase 3 前端工程
  - [ ] Vite + React + TS 脚手架（`OCCS/webui`）
