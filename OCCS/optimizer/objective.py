@@ -235,7 +235,7 @@ def create_hardware_objective(
     """Build a hardware-coupled objective.
 
     Mirrors :func:`create_objective_from_csv` parameters and adds ``hardware``
-    providing ``apply_voltage`` and ``get_simulated_response`` as in
+    providing ``apply_voltage`` and ``get_response`` as in
     :class:`OCCS.connector.MockHardware`.
     """
 
