@@ -43,6 +43,15 @@ def create_app() -> Any:
 
     # Runtime session store: id -> OptimizerSession
     app.state.sessions = {}
+    # Upload directory for target CSVs (created on demand)
+    import tempfile, os
+    from pathlib import Path
+    up_dir = Path(tempfile.gettempdir()) / "occs_uploads"
+    try:
+        up_dir.mkdir(parents=True, exist_ok=True)
+    except Exception:
+        pass
+    app.state.upload_dir = up_dir
 
     # ---- Utilities ----
     from OCCS.service.hardware import list_backends
@@ -114,7 +123,6 @@ def create_app() -> Any:
         target_csv_path = payload.get("target_csv_path")
         if target_csv_path is not None:
             try:
-                from pathlib import Path
                 p = Path(str(target_csv_path))
                 if not (p.exists() and p.is_file()):
                     from fastapi import HTTPException
@@ -239,6 +247,31 @@ def create_app() -> Any:
             "best_loss": float(sess.best_loss) if sess.best_loss is not None else None,
             "best_x": list(map(float, np.asarray(sess.best_x))) if sess.best_x is not None else None,
         }
+
+    # ---- Uploads ----
+    from fastapi import UploadFile, File
+    # Ensure UploadFile is available at module level for deferred annotation resolution
+    globals()["UploadFile"] = UploadFile
+    @app.post("/api/upload/target")
+    async def api_upload_target(file: UploadFile = File(...)) -> Dict[str, Any]:
+        """Accept a target CSV upload and return a server-side path.
+
+        The returned path can be passed as `target_csv_path` when creating a session.
+        """
+        # Basic sanitation: enforce .csv extension (not strict parsing here)
+        name = file.filename or "target.csv"
+        if not name.lower().endswith(".csv"):
+            name = name + ".csv"
+        # Store under upload_dir with unique prefix
+        fname = f"{uuid.uuid4().hex}_{os.path.basename(name)}"
+        out = app.state.upload_dir / fname
+        content = await file.read()
+        try:
+            out.write_bytes(content)
+        except Exception as exc:
+            from fastapi import HTTPException
+            raise HTTPException(status_code=500, detail=f"failed to store upload: {exc}")
+        return {"path": str(out)}
 
     @app.get("/api/session/{sid}/history.csv")
     def api_history_csv(sid: str):

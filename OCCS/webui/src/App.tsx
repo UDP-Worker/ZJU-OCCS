@@ -4,7 +4,8 @@ import { WaveformChart } from './components/WaveformChart'
 import { LossChart } from './components/LossChart'
 import { OptimizerControls } from './components/OptimizerControls'
 import { StatusBar } from './components/StatusBar'
-import { getBackends, createSession, getResponse, postVoltages, startOptimize, stopOptimize, getSessionStatus, getHistory, getVoltages } from './api/client'
+import { DiagnosticsPanel } from './components/DiagnosticsPanel'
+import { getBackends, createSession, getResponse, postVoltages, startOptimize, stopOptimize, getSessionStatus, getHistory, getVoltages, uploadTarget } from './api/client'
 import { connectSessionStream, type StreamMessage } from './api/ws'
 
 export default function App() {
@@ -26,6 +27,9 @@ export default function App() {
   const [wave, setWave] = useState<{ lambda: number[]; signal: number[]; target: number[] }>({ lambda: [], signal: [], target: [] })
   const [currVolts, setCurrVolts] = useState<number[]>([])
   const [bestVolts, setBestVolts] = useState<number[] | null>(null)
+  const [xi, setXi] = useState<number | null>(null)
+  const [targetPath, setTargetPath] = useState<string | null>(null)
+  const [targetLabel, setTargetLabel] = useState<string | null>(null)
 
   const [voltsText, setVoltsText] = useState('0,0,0')
   const [nCalls, setNCalls] = useState(5)
@@ -73,6 +77,7 @@ export default function App() {
         // 最新 x 作为当前电压
         const last = (hist.history || []).slice(-1)[0]
         if (last && last.x && Array.isArray(last.x)) setCurrVolts(last.x as number[])
+        if (last && last.diag && typeof last.diag.xi === 'number') setXi(last.diag.xi as number)
         // 可选：运行态时刷新波形与当前电压
         if (st.running) {
           try { setWave(await getResponse(sessionId)) } catch {}
@@ -89,7 +94,8 @@ export default function App() {
 
   async function onCreateSession() {
     if (!canCreate) return
-    const payload = { backend, dac_size: dac, wavelength: { start: wlStart, stop: wlStop, M: wlM }, bounds: bounds.map(b => [b.low, b.high]) }
+    const payload: any = { backend, dac_size: dac, wavelength: { start: wlStart, stop: wlStop, M: wlM }, bounds: bounds.map(b => [b.low, b.high]) }
+    if (targetPath) payload.target_csv_path = targetPath
     const r = await createSession(payload)
     setSessionId(r.session_id)
     // reset default volt text to match dac size
@@ -109,6 +115,7 @@ export default function App() {
         if (msg.x && Array.isArray(msg.x)) setCurrVolts(msg.x)
         const bx: any = (msg as any).best_x
         if (bx && Array.isArray(bx)) setBestVolts(bx as number[])
+        if (typeof (msg as any).xi === 'number') setXi((msg as any).xi as number)
       } else if (msg.type === 'waveform') {
         setWave({ lambda: msg.lambda, signal: msg.signal, target: msg.target })
       }
@@ -195,6 +202,21 @@ export default function App() {
             </div>
           ))}
         </div>
+        <div style={{ marginTop: 8 }}>
+          <div style={{ fontSize: 12, opacity: 0.8 }}>理想波形 CSV</div>
+          <input type="file" accept=".csv" onChange={async (e) => {
+            const f = e.currentTarget.files?.[0]
+            if (!f) return
+            try {
+              const res = await uploadTarget(f)
+              setTargetPath(res.path)
+              setTargetLabel(f.name)
+            } catch (e) {
+              console.error('上传失败', e)
+            }
+          }} />
+          {targetLabel ? <span style={{ marginLeft: 8, fontSize: 12, opacity: 0.8 }}>已上传：{targetLabel}</span> : null}
+        </div>
         <button type="button" disabled={!!sessionId || !canCreate} onClick={onCreateSession}>创建</button>
         {sessionId ? <span style={{ marginLeft: 8 }}>会话: {sessionId.slice(0, 8)}…</span> : null}
       </fieldset>
@@ -237,6 +259,8 @@ export default function App() {
           状态：{status.running ? '运行中' : '空闲'}，迭代：{status.iter}，best_loss：{status.best_loss ?? '—'}，loss 点数：{losses.length}
         </div>
       </fieldset>
+
+      <DiagnosticsPanel xi={xi} />
 
       <StatusBar connected={!!connected} sessionId={sessionId} />
     </div>

@@ -127,7 +127,11 @@ class CurveObjective:
 
         # 使用简单的 MSE 作为曲线间的距离（不做对齐与归一化/加权）
         err = s_ref - self.target_ref
-        loss = float(np.mean(err ** 2))
+        # 避免上游偶发的 NaN 传播：使用 nanmean，并在极端情况下回退为 +inf
+        err2 = (err ** 2)
+        loss = float(np.nanmean(err2))
+        if not np.isfinite(loss):
+            loss = float("inf")
 
         # 维持原有诊断信息接口（以便下游可视化或日志不受影响）
         diag = {
@@ -140,7 +144,7 @@ class CurveObjective:
         return loss, diag
 
 def create_objective_from_csv(target_csv_path: str | Path,
-                              M: int = 1001,
+                              M: Optional[int] = None,
                               lambda_min: Optional[float] = None,
                               lambda_max: Optional[float] = None,
                               passband: Optional[Tuple[float, float]] = None,
@@ -174,14 +178,38 @@ def create_objective_from_csv(target_csv_path: str | Path,
         Configured objective bound to the generated reference grid.
     """
     lam_t, t_raw = load_two_row_csv(target_csv_path)
+    # 清理并确保升序
+    lam_t = np.asarray(lam_t, dtype=np.float64).ravel()
+    t_raw = np.asarray(t_raw, dtype=np.float64).ravel()
+    if lam_t.size != t_raw.size:
+        raise ValueError("Lambda and target lengths differ in CSV")
+    # 过滤掉非有限值
+    mfin = np.isfinite(lam_t) & np.isfinite(t_raw)
+    lam_t = lam_t[mfin]
+    t_raw = t_raw[mfin]
+    if lam_t.size < 2:
+        raise ValueError("CSV must contain at least 2 valid points")
+    # 升序排序
+    if not np.all(np.diff(lam_t) >= 0):
+        idx = np.argsort(lam_t)
+        lam_t = lam_t[idx]
+        t_raw = t_raw[idx]
 
-    # 生成参考网格
-    lam_lo = float(lam_t.min() if lambda_min is None else lambda_min)
-    lam_hi = float(lam_t.max() if lambda_max is None else lambda_max)
-    lambda_ref = np.linspace(lam_lo, lam_hi, int(M))
-
-    # 将理想曲线重采样到参考网格
-    t_ref = resample_to_ref(lam_t, t_raw, lambda_ref)
+    # 生成参考网格：若未显式指定范围/分辨率，则完全采用 CSV 的原始网格
+    if M is None and lambda_min is None and lambda_max is None:
+        lambda_ref = lam_t
+        t_ref = t_raw
+    else:
+        lam_lo = float(lam_t.min() if lambda_min is None else lambda_min)
+        lam_hi = float(lam_t.max() if lambda_max is None else lambda_max)
+        if not np.isfinite(lam_lo) or not np.isfinite(lam_hi) or lam_hi <= lam_lo:
+            raise ValueError("Invalid lambda range when building objective")
+        M_ref = int(M if M is not None else lam_t.size)
+        if M_ref < 2:
+            raise ValueError("M must be >= 2 for objective grid")
+        lambda_ref = np.linspace(lam_lo, lam_hi, M_ref)
+        # 将理想曲线重采样到参考网格
+        t_ref = resample_to_ref(lam_t, t_raw, lambda_ref)
 
     # 配置权重
     cfg = config or ObjectiveConfig()
@@ -224,7 +252,7 @@ class HardwareObjective:
 def create_hardware_objective(
     hardware,
     target_csv_path: str | Path,
-    M: int = 1001,
+    M: Optional[int] = None,
     lambda_min: Optional[float] = None,
     lambda_max: Optional[float] = None,
     passband: Optional[Tuple[float, float]] = None,

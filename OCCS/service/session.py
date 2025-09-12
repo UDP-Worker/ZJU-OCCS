@@ -60,10 +60,11 @@ class OptimizerSession:
         )
 
         # Use same number of points as hardware wavelength for reference grid
+        # 目标函数：默认完全采用 CSV 的原始波长网格（更稳妥，避免插值/外推造成的异常）
         self.hw_objective = create_hardware_objective(
             self.hardware,
             target_csv_path=target_csv,
-            M=int(self.wavelength.size),
+            M=None,
         )
 
         # Construct optimizer with bounds from hardware if available
@@ -87,17 +88,17 @@ class OptimizerSession:
         self.hardware.apply_voltage(arr)
 
     def read_waveform(self) -> Dict[str, Any]:
-        signal = self.hardware.get_response()
-        lam = np.asarray(self.wavelength, dtype=float)
-        # Resample target to wavelength grid via the objective itself
-        # (Call with identical grid to get aligned s_ref and use target from diag)
-        _, diag = self.hw_objective.curve_obj(lam, signal)
-        target = np.asarray(diag.get("target_norm", diag.get("s_ref", [])), dtype=float)
-        return {
-            "lambda": lam,
-            "signal": np.asarray(signal, dtype=float),
-            "target": target if target.size == lam.size else np.asarray([], dtype=float),
-        }
+        # 获取当前硬件波形，并通过目标函数在参考网格上对齐/重采样
+        raw_signal = self.hardware.get_response()
+        lam_in = np.asarray(self.wavelength, dtype=float)
+        # 使用曲线目标的调用来得到对齐后的诊断（含 lambda_ref/s_ref/target_norm）
+        _, diag = self.hw_objective.curve_obj(lam_in, raw_signal)
+        lam_ref = np.asarray(diag.get("lambda_ref", lam_in), dtype=float)
+        s_ref = np.asarray(diag.get("s_ref", raw_signal), dtype=float)
+        t_ref = np.asarray(diag.get("target_norm", []), dtype=float)
+        # 仅当目标长度匹配参考网格时返回目标，以避免前端绘图异常
+        target = t_ref if t_ref.size == lam_ref.size else np.asarray([], dtype=float)
+        return {"lambda": lam_ref, "signal": s_ref, "target": target}
 
     def status(self) -> Dict[str, Any]:
         best_loss = (
@@ -153,9 +154,15 @@ class OptimizerSession:
                 kw["acq_func"] = acq_func
             if random_state is not None:
                 kw["random_state"] = int(random_state)
+            # 维度在重建时也要提供兜底，避免 None 导致 Optimizer 未初始化
+            dims = (
+                getattr(self.hardware, "skopt_dimensions", None)
+                or self.bounds
+                or [(-1.0, 1.0) for _ in range(int(self.dac_size))]
+            )
             self.optimizer = BayesianOptimizer(
                 self.hw_objective,
-                dimensions=getattr(self.hardware, "skopt_dimensions", None) or self.bounds,
+                dimensions=dims,
                 **kw,
             )
             self.optimizer_kwargs = kw

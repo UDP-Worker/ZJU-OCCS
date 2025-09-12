@@ -63,3 +63,11 @@ export async function getHistory(id: string) {
     `/api/session/${id}/history`
   )
 }
+
+export async function uploadTarget(file: File) {
+  const fd = new FormData()
+  fd.append('file', file)
+  const r = await fetch('/api/upload/target', { method: 'POST', body: fd })
+  if (!r.ok) throw new Error(`HTTP ${r.status}`)
+  return (await r.json()) as { path: string }
+}

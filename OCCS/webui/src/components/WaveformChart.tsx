@@ -53,6 +53,17 @@ export function WaveformChart({ data }: { data: { lambda: number[]; signal: numb
     ctx.moveTo(xScale(0), yScale(sig[0]))
     for (let i = 1; i < sig.length; i++) ctx.lineTo(xScale(i), yScale(sig[i]))
     ctx.stroke()
+
+    // legend
+    const lx = 16, ly = 16, ll = 28
+    // signal legend
+    ctx.strokeStyle = '#5b9cf6'; ctx.lineWidth = 2
+    ctx.beginPath(); ctx.moveTo(lx, ly); ctx.lineTo(lx + ll, ly); ctx.stroke()
+    ctx.fillStyle = '#e6e9ef'; ctx.fillText('响应', lx + ll + 6, ly + 4)
+    // target legend
+    ctx.strokeStyle = '#e57373'; ctx.lineWidth = 1.5
+    ctx.beginPath(); ctx.moveTo(lx, ly + 16); ctx.lineTo(lx + ll, ly + 16); ctx.stroke()
+    ctx.fillStyle = '#e6e9ef'; ctx.fillText('目标', lx + ll + 6, ly + 20)
   }, [data])
   return (
     <div>
