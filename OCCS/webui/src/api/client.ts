@@ -43,6 +43,10 @@ export async function getResponse(id: string) {
   )
 }
 
+export async function getVoltages(id: string) {
+  return http<{ volts: number[] }>(`/api/session/${id}/voltages`)
+}
+
 export async function startOptimize(id: string, payload: any) {
   return http<{ ok: boolean }>(`/api/session/${id}/optimize/start`, {
     method: 'POST',
@@ -59,4 +63,3 @@ export async function getHistory(id: string) {
     `/api/session/${id}/history`
   )
 }
-
