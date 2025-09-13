@@ -43,8 +43,26 @@ export default function App() {
   const [globalHigh, setGlobalHigh] = useState(1)
 
   const wsRef = useRef<WebSocket | null>(null)
+  const fileRef = useRef<HTMLInputElement | null>(null)
   const [wsReady, setWsReady] = useState(false)
   const [polling, setPolling] = useState(false)
+  // 主题：auto | light | dark
+  const [theme, setTheme] = useState<'auto' | 'light' | 'dark'>('auto')
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem('occs-theme')
+      if (saved === 'light' || saved === 'dark' || saved === 'auto') {
+        setTheme(saved)
+      }
+    } catch {}
+  }, [])
+
+  useEffect(() => {
+    const root = document.documentElement
+    if (theme === 'auto') root.removeAttribute('data-theme')
+    else root.setAttribute('data-theme', theme)
+    try { localStorage.setItem('occs-theme', theme) } catch {}
+  }, [theme])
 
   useEffect(() => {
     getBackends().then(setBackends).catch(() => setBackends([{ name: 'mock', available: true }]))
@@ -111,8 +129,8 @@ export default function App() {
     if (targetPath) payload.target_csv_path = targetPath
     const r = await createSession(payload)
     setSessionId(r.session_id)
-    // reset default volt text to match dac size
-    setVoltsText(Array.from({ length: dac }).fill('0').join(','))
+    // reset manual voltages to zeros matching dac size
+    setVoltsArr(Array.from({ length: dac }).map(() => 0))
     // connect WS
     const ws = connectSessionStream(r.session_id)
     wsRef.current = ws
@@ -215,64 +233,65 @@ export default function App() {
   const connected = wsReady || polling
 
   return (
-    <div style={{ fontFamily: 'system-ui, sans-serif', padding: 16 }}>
-      <h1>OCCS Web UI</h1>
+    <div className="container">
+      <div className="row" style={{ justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+        <h1>OCCS Web UI</h1>
+        <div className="row">
+          <button className={`btn ${theme==='auto' ? 'btn-primary' : ''}`} onClick={() => setTheme('auto')}>系统</button>
+          <button className={`btn ${theme==='dark' ? 'btn-primary' : ''}`} onClick={() => setTheme('dark')}>深色</button>
+          <button className={`btn ${theme==='light' ? 'btn-primary' : ''}`} onClick={() => setTheme('light')}>浅色</button>
+        </div>
+      </div>
 
-      {/* Quick controls (wired) */}
-      <fieldset>
-        <legend>创建会话</legend>
-        <label>
-          后端：
-          <select value={backend} onChange={(e) => setBackend(e.target.value)}>
+      {/* 创建会话 */}
+      <div className="card">
+        <div className="card-title">创建会话</div>
+        <div className="row">
+          <span className="label">后端</span>
+          <select className="select" value={backend} onChange={(e) => setBackend(e.target.value)}>
             {backends.map((b) => (
               <option key={b.name} value={b.name} disabled={!b.available}>
                 {b.name} {b.available ? '' : '(不可用)'}
               </option>
             ))}
           </select>
-        </label>
-        <label>
-          DAC 通道
-          <input type="number" min={1} value={dac} onChange={(e) => setDac(parseInt(e.target.value || '1'))} />
-        </label>
-        <label>
-          波长 start (m)
-          <input type="number" step="any" value={wlStart} onChange={(e) => setWlStart(parseFloat(e.target.value))} />
-        </label>
-        <label>
-          stop
-          <input type="number" step="any" value={wlStop} onChange={(e) => setWlStop(parseFloat(e.target.value))} />
-        </label>
-        <label>
-          M
-          <input type="number" min={2} value={wlM} onChange={(e) => setWlM(parseInt(e.target.value || '2'))} />
-        </label>
-        <div style={{ marginTop: 8 }}>
-          <div style={{ fontSize: 12, opacity: 0.8 }}>每通道电压范围（低/高，默认 -1..1）</div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '6px 0' }}>
-            <span style={{ fontSize: 12, opacity: 0.8 }}>统一设置：</span>
-            <input type="number" step="any" value={globalLow} onChange={(e) => setGlobalLow(parseFloat(e.target.value))} style={{ width: 80 }} />
-            <span>~</span>
-            <input type="number" step="any" value={globalHigh} onChange={(e) => setGlobalHigh(parseFloat(e.target.value))} style={{ width: 80 }} />
-            <button type="button" onClick={() => setBounds(Array.from({ length: dac }, () => ({ low: globalLow, high: globalHigh })))}>应用到所有通道</button>
-            <button type="button" onClick={() => { if (bounds.length > 0) { setGlobalLow(bounds[0].low); setGlobalHigh(bounds[0].high) } }}>取 ch0</button>
-          </div>
+          <span className="label">DAC 通道</span>
+          <input className="input" type="number" min={1} value={dac} onChange={(e) => setDac(parseInt(e.target.value || '1'))} />
+          <span className="label">波长 start (m)</span>
+          <input className="input" type="number" step="any" value={wlStart} onChange={(e) => setWlStart(parseFloat(e.target.value))} />
+          <span className="label">stop</span>
+          <input className="input" type="number" step="any" value={wlStop} onChange={(e) => setWlStop(parseFloat(e.target.value))} />
+          <span className="label">M</span>
+          <input className="input" type="number" min={2} value={wlM} onChange={(e) => setWlM(parseInt(e.target.value || '2'))} />
+        </div>
+        <div className="spacer"></div>
+        <div className="muted">每通道电压范围（低/高，默认 -1..1）</div>
+        <div className="row" style={{ margin: '6px 0' }}>
+          <span className="label">统一设置</span>
+          <input className="input" type="number" step="any" value={globalLow} onChange={(e) => setGlobalLow(parseFloat(e.target.value))} style={{ width: 100 }} />
+          <span>~</span>
+          <input className="input" type="number" step="any" value={globalHigh} onChange={(e) => setGlobalHigh(parseFloat(e.target.value))} style={{ width: 100 }} />
+          <button className="btn" type="button" onClick={() => setBounds(Array.from({ length: dac }, () => ({ low: globalLow, high: globalHigh })))}>应用到所有通道</button>
+          <button className="btn" type="button" onClick={() => { if (bounds.length > 0) { setGlobalLow(bounds[0].low); setGlobalHigh(bounds[0].high) } }}>取 ch0</button>
+        </div>
+        <div className="row" style={{ flexWrap: 'wrap' }}>
           {bounds.map((b, i) => (
             <div key={i} style={{ display: 'inline-flex', alignItems: 'center', marginRight: 8 }}>
-              <span style={{ fontSize: 12, opacity: 0.8 }}>ch{i}:</span>
-              <input type="number" step="any" value={b.low} onChange={(e) => {
+              <span className="label">ch{i}</span>
+              <input className="input" type="number" step="any" value={b.low} onChange={(e) => {
                 const v = parseFloat(e.target.value); setBounds(bs => bs.map((bb, j) => j === i ? { ...bb, low: v } : bb))
-              }} style={{ width: 80, marginLeft: 4 }} />
+              }} style={{ width: 100 }} />
               <span style={{ margin: '0 4px' }}>~</span>
-              <input type="number" step="any" value={b.high} onChange={(e) => {
+              <input className="input" type="number" step="any" value={b.high} onChange={(e) => {
                 const v = parseFloat(e.target.value); setBounds(bs => bs.map((bb, j) => j === i ? { ...bb, high: v } : bb))
-              }} style={{ width: 80 }} />
+              }} style={{ width: 100 }} />
             </div>
           ))}
         </div>
-        <div style={{ marginTop: 8 }}>
-          <div style={{ fontSize: 12, opacity: 0.8 }}>理想波形 CSV</div>
-          <input type="file" accept=".csv" onChange={async (e) => {
+        <div className="spacer"></div>
+        <div className="muted">理想波形 CSV</div>
+        <div className="row">
+          <input ref={fileRef} style={{ display: 'none' }} type="file" accept=".csv" onChange={async (e) => {
             const f = e.currentTarget.files?.[0]
             if (!f) return
             try {
@@ -281,32 +300,40 @@ export default function App() {
               setTargetLabel(f.name)
             } catch (e) {
               console.error('上传失败', e)
+            } finally {
+              e.currentTarget.value = '' // reset for same-file reselect
             }
           }} />
-          {targetLabel ? <span style={{ marginLeft: 8, fontSize: 12, opacity: 0.8 }}>已上传：{targetLabel}</span> : null}
+          <button className="btn" type="button" onClick={() => fileRef.current?.click()}>选择文件</button>
+          {targetLabel ? <span className="muted">已上传：{targetLabel}</span> : <span className="muted">未选择文件</span>}
         </div>
-        <button type="button" disabled={!!sessionId || !canCreate} onClick={onCreateSession}>创建</button>
-        {sessionId ? <span style={{ marginLeft: 8 }}>会话: {sessionId.slice(0, 8)}…</span> : null}
-      </fieldset>
-
-      <div style={{ display: 'flex', gap: 16 }}>
-        <div style={{ flex: 1 }}>
-          <WaveformChart data={wave} />
-        </div>
-        <div style={{ flex: 1 }}>
-          <LossChart losses={losses} />
+        <div className="spacer"></div>
+        <div className="row">
+          <button className="btn btn-primary" type="button" disabled={!!sessionId || !canCreate} onClick={onCreateSession}>创建</button>
+          {sessionId ? <span className="muted">会话: {sessionId.slice(0, 8)}…</span> : null}
         </div>
       </div>
 
-      <fieldset>
-        <legend>手动电压</legend>
-        <div style={{ marginBottom: 6, fontSize: 12, color: '#98a2b3' }}>每通道一个输入，单位：V</div>
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
+      <div className="grid grid-2" style={{ marginTop: 16 }}>
+        <div className="card stretch">
+          <div className="card-title">波形</div>
+          <WaveformChart data={wave} themeKey={theme} />
+        </div>
+        <div className="card stretch">
+          <div className="card-title">Loss 曲线</div>
+          <LossChart losses={losses} themeKey={theme} />
+        </div>
+      </div>
+
+      <div className="card" style={{ marginTop: 16 }}>
+        <div className="card-title">手动电压</div>
+        <div className="muted" style={{ marginBottom: 6 }}>每通道一个输入，单位：V</div>
+        <div className="row" style={{ flexWrap: 'wrap' }}>
           {Array.from({ length: dac }).map((_, i) => (
             <label key={i} style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-              <span style={{ fontSize: 12, opacity: 0.85 }}>ch{i}</span>
+              <span className="label">ch{i}</span>
               <input
-                type="number"
+                className="input" type="number"
                 step="any"
                 value={Number.isFinite(voltsArr[i]) ? voltsArr[i] : 0}
                 onChange={(e) => {
@@ -315,69 +342,59 @@ export default function App() {
                   setVoltsArr((arr) => arr.map((vv, j) => (j === i ? (Number.isNaN(num) ? 0 : num) : vv)))
                 }}
                 disabled={status.running || !sessionId}
-                style={{ width: 90 }}
+                style={{ width: 100 }}
               />
             </label>
           ))}
         </div>
-        <div style={{ marginTop: 8 }}>
-          <button type="button" disabled={!sessionId || status.running} onClick={onApplyVoltages}>应用并刷新波形</button>
-          <button type="button" disabled={!sessionId || status.running || !bestVolts || bestVolts.length === 0} onClick={onApplyBestVoltages} style={{ marginLeft: 8 }}>应用最优电压</button>
-          <button type="button" disabled={!bestVolts || bestVolts.length === 0} onClick={onCopyBestVoltages} style={{ marginLeft: 8 }}>复制最优电压</button>
+        <div className="row" style={{ marginTop: 8 }}>
+          <button className="btn btn-primary" type="button" disabled={!sessionId || status.running} onClick={onApplyVoltages}>应用并刷新波形</button>
+          <button className="btn" type="button" disabled={!sessionId || status.running || !bestVolts || bestVolts.length === 0} onClick={onApplyBestVoltages}>应用最优电压</button>
+          <button className="btn" type="button" disabled={!bestVolts || bestVolts.length === 0} onClick={onCopyBestVoltages}>复制最优电压</button>
         </div>
         {status.running ? (
-          <div style={{ marginTop: 6, fontSize: 12, color: '#d97706' }}>
+          <div className="muted" style={{ marginTop: 6, color: '#d97706' }}>
             优化进行中，已暂时禁止手动下发电压。
           </div>
         ) : null}
-        <div style={{ marginTop: 6, fontSize: 12, color: '#98a2b3' }}>
+        <div className="muted" style={{ marginTop: 6 }}>
           当前电压：[{currVolts.map(v => Number.isFinite(v) ? v.toFixed(3) : String(v)).join(', ')}]
         </div>
-        <div style={{ marginTop: 4, fontSize: 12, color: '#98a2b3' }}>
+        <div className="muted" style={{ marginTop: 4 }}>
           最优电压：[{(bestVolts ?? []).map(v => Number.isFinite(v) ? v.toFixed(3) : String(v)).join(', ')}]
         </div>
-      </fieldset>
+      </div>
 
-      <fieldset>
-        <legend>优化控制</legend>
-        <label>
-          迭代次数
-          <input type="number" min={1} value={nCalls} onChange={(e) => setNCalls(parseInt(e.target.value || '1'))} />
-        </label>
-        <label style={{ marginLeft: 8 }}>
-          随机种子
-          <input
-            type="number"
-            placeholder="可选，如 42"
-            value={randSeed}
-            onChange={(e) => setRandSeed(e.target.value)}
-            style={{ width: 120 }}
-          />
-        </label>
-        <button type="button" disabled={!sessionId} onClick={onStartOptimize}>开始优化</button>
-        <button type="button" disabled={!sessionId} onClick={onStopOptimize}>停止</button>
-        {sessionId ? (
-          <a style={{ marginLeft: 8 }} href={`/api/session/${sessionId}/history.csv`} target="_blank" rel="noreferrer">
-            下载历史 CSV
-          </a>
-        ) : null}
-        <div style={{ marginTop: 8, fontSize: 12, color: '#888' }}>
+      <div className="card" style={{ marginTop: 16 }}>
+        <div className="card-title">优化控制</div>
+        <div className="row">
+          <span className="label">迭代次数</span>
+          <input className="input" type="number" min={1} value={nCalls} onChange={(e) => setNCalls(parseInt(e.target.value || '1'))} />
+          <span className="label">随机种子</span>
+          <input className="input" type="number" placeholder="可选，如 42" value={randSeed} onChange={(e) => setRandSeed(e.target.value)} style={{ width: 140 }} />
+          <button className="btn btn-primary" type="button" disabled={!sessionId} onClick={onStartOptimize}>开始优化</button>
+          <button className="btn" type="button" disabled={!sessionId} onClick={onStopOptimize}>停止</button>
+          {sessionId ? (
+            <a className="btn btn-ghost" href={`/api/session/${sessionId}/history.csv`} target="_blank" rel="noreferrer">下载历史 CSV</a>
+          ) : null}
+        </div>
+        <div className="muted" style={{ marginTop: 8 }}>
           状态：{status.running ? '运行中' : '空闲'}，迭代：{status.iter}，best_loss：{status.best_loss ?? '—'}，loss 点数：{losses.length}
         </div>
-      </fieldset>
+      </div>
 
-      <fieldset>
-        <legend>诊断</legend>
-        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 16 }}>
+      <div className="card" style={{ marginTop: 16 }}>
+        <div className="card-title">诊断</div>
+        <div className="row" style={{ alignItems: 'flex-start' }}>
           <div style={{ flex: 1 }}>
-            <XiChart xis={xis} />
+            <XiChart xis={xis} themeKey={theme} />
           </div>
           <div style={{ minWidth: 160 }}>
-            <div style={{ fontSize: 12, color: '#98a2b3' }}>当前 xi</div>
+            <div className="muted">当前 ξ</div>
             <div style={{ fontSize: 18 }}>{xi != null && isFinite(xi) ? xi.toFixed(4) : '—'}</div>
           </div>
         </div>
-      </fieldset>
+      </div>
 
       <StatusBar connected={!!connected} sessionId={sessionId} />
     </div>

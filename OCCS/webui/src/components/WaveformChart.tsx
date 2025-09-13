@@ -1,6 +1,6 @@
 import React, { useEffect, useRef } from 'react'
 
-export function WaveformChart({ data }: { data: { lambda: number[]; signal: number[]; target: number[] } }) {
+export function WaveformChart({ data, themeKey }: { data: { lambda: number[]; signal: number[]; target: number[] }; themeKey?: string }) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
   useEffect(() => {
     const cvs = canvasRef.current
@@ -9,11 +9,16 @@ export function WaveformChart({ data }: { data: { lambda: number[]; signal: numb
     const w = (cvs.width = cvs.clientWidth)
     const h = (cvs.height = cvs.clientHeight)
     ctx.clearRect(0, 0, w, h)
-    ctx.fillStyle = '#11151c'
+    const styles = getComputedStyle(document.documentElement)
+    const card = styles.getPropertyValue('--card').trim() || '#11151c'
+    const border = styles.getPropertyValue('--border').trim() || '#2a2f3a'
+    const muted = styles.getPropertyValue('--muted').trim() || '#98a2b3'
+    const fg = styles.getPropertyValue('--fg').trim() || '#e6e9ef'
+    ctx.fillStyle = card
     ctx.fillRect(0, 0, w, h)
     const { lambda, signal, target } = data
     if (!lambda?.length || !signal?.length) {
-      ctx.fillStyle = '#98a2b3'
+      ctx.fillStyle = muted
       ctx.fillText('暂无波形数据', 10, 20)
       return
     }
@@ -28,7 +33,7 @@ export function WaveformChart({ data }: { data: { lambda: number[]; signal: numb
     }
     const xScale = (i: number) => (i / (N - 1 || 1)) * (w - 20) + 10
     // grid
-    ctx.strokeStyle = '#2a2f3a'
+    ctx.strokeStyle = border
     ctx.lineWidth = 1
     ctx.beginPath()
     for (let i = 0; i <= 4; i++) {
@@ -59,18 +64,15 @@ export function WaveformChart({ data }: { data: { lambda: number[]; signal: numb
     // signal legend
     ctx.strokeStyle = '#5b9cf6'; ctx.lineWidth = 2
     ctx.beginPath(); ctx.moveTo(lx, ly); ctx.lineTo(lx + ll, ly); ctx.stroke()
-    ctx.fillStyle = '#e6e9ef'; ctx.fillText('响应', lx + ll + 6, ly + 4)
+    ctx.fillStyle = fg; ctx.fillText('响应', lx + ll + 6, ly + 4)
     // target legend
     ctx.strokeStyle = '#e57373'; ctx.lineWidth = 1.5
     ctx.beginPath(); ctx.moveTo(lx, ly + 16); ctx.lineTo(lx + ll, ly + 16); ctx.stroke()
-    ctx.fillStyle = '#e6e9ef'; ctx.fillText('目标', lx + ll + 6, ly + 20)
-  }, [data])
+    ctx.fillStyle = fg; ctx.fillText('目标', lx + ll + 6, ly + 20)
+  }, [data, themeKey])
   return (
-    <div>
-      <h3>波形</h3>
-      <div style={{ height: 240, border: '1px solid #2a2f3a' }}>
-        <canvas ref={canvasRef} style={{ width: '100%', height: '100%', display: 'block' }} />
-      </div>
+    <div className="chart-box">
+      <canvas ref={canvasRef} style={{ width: '100%', height: '100%', display: 'block' }} />
     </div>
   )
 }
