@@ -1,0 +1,7 @@
+recursive-include OCCS/webui/dist *
+recursive-include OCCS/data *.csv
+recursive-include OCCS/service *.py
+recursive-include OCCS/connector *.py
+recursive-include OCCS/optimizer *.py
+recursive-include OCCS/simulate *.py
+include README.md LICENSE

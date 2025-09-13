@@ -69,7 +69,23 @@ npm run build
 # Restart the backend; open http://127.0.0.1:8000/
 ```
 
-### 4) Using the app
+### 4) Docker
+
+Build locally:
+
+```bash
+docker build -t occs-web:local .
+docker run --rm -p 8000:8000 occs-web:local
+# Open http://127.0.0.1:8000/
+```
+
+Enable real hardware backend (optional):
+
+```bash
+docker run --rm -e OCCS_REAL_AVAILABLE=1 -p 8000:8000 occs-web:local
+```
+
+### 5) Using the app
 
 - Select backend (mock by default). Real hardware is disabled unless `OCCS_REAL_AVAILABLE=1`.
 - Configure wavelength grid and voltage bounds; optionally upload a target CSV.

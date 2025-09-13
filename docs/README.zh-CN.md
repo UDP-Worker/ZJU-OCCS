@@ -69,7 +69,23 @@ npm run build
 # 重启后端；访问 http://127.0.0.1:8000/
 ```
 
-### 4）使用流程
+### 4）Docker
+
+本地构建并运行：
+
+```bash
+docker build -t occs-web:local .
+docker run --rm -p 8000:8000 occs-web:local
+# 打开 http://127.0.0.1:8000/
+```
+
+启用真实硬件（可选）：
+
+```bash
+docker run --rm -e OCCS_REAL_AVAILABLE=1 -p 8000:8000 occs-web:local
+```
+
+### 5）使用流程
 
 - 选择后端（默认 mock）。真实硬件默认关闭，需将环境变量 `OCCS_REAL_AVAILABLE=1` 以启用。
 - 配置波长网格与电压边界；可上传理想目标 CSV。

@@ -49,3 +49,4 @@ OCCS/data/optimization/**
 # --- Archives ---
 *.tar.gz
 *.zip
+*.tar

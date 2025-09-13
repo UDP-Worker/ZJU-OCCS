@@ -1,0 +1,28 @@
+# Ignore VCS
+.git
+.github
+
+# Python caches and build
+__pycache__/
+*.py[cod]
+*.pyo
+.mypy_cache/
+.pytest_cache/
+.tox/
+.nox/
+build/
+dist/
+
+# Node caches
+**/node_modules/
+**/.vite/
+**/dist/
+
+# Editors / OS
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+
+# Test outputs
+OCCS/data/optimization/**
