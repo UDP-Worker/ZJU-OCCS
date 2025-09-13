@@ -35,6 +35,8 @@ export default function App() {
 
   const [voltsText, setVoltsText] = useState('0,0,0')
   const [nCalls, setNCalls] = useState(5)
+  // 可选：优化的随机种子（留空表示不指定）
+  const [randSeed, setRandSeed] = useState<string>('')
   // 全局电压边界（快捷统一设置）
   const [globalLow, setGlobalLow] = useState(-1)
   const [globalHigh, setGlobalHigh] = useState(1)
@@ -147,7 +149,7 @@ export default function App() {
   }
 
   async function onApplyVoltages() {
-    if (!sessionId) return
+    if (!sessionId || status.running) return
     const arr = voltsText.split(/[ ,]+/).filter(Boolean).map(parseFloat)
     await postVoltages(sessionId, arr)
     const wf = await getResponse(sessionId)
@@ -155,11 +157,53 @@ export default function App() {
     try { const vv = await getVoltages(sessionId); setCurrVolts(vv.volts) } catch {}
   }
 
+  async function onApplyBestVoltages() {
+    if (!sessionId || status.running) return
+    if (!bestVolts || !bestVolts.length) return
+    await postVoltages(sessionId, bestVolts)
+    try {
+      const wf = await getResponse(sessionId)
+      setWave(wf)
+      const vv = await getVoltages(sessionId)
+      setCurrVolts(vv.volts)
+      setVoltsText(bestVolts.map((v) => String(v)).join(','))
+    } catch {}
+  }
+
+  async function onCopyBestVoltages() {
+    const arr = bestVolts ?? []
+    if (!arr.length) return
+    const text = arr.join(',')
+    try {
+      if (navigator?.clipboard?.writeText) {
+        await navigator.clipboard.writeText(text)
+      } else {
+        // Fallback: use a temporary textarea
+        const ta = document.createElement('textarea')
+        ta.value = text
+        document.body.appendChild(ta)
+        ta.select()
+        document.execCommand('copy')
+        document.body.removeChild(ta)
+      }
+    } catch (e) {
+      // noop on failure
+      console.error('复制失败', e)
+    }
+  }
+
   async function onStartOptimize() {
     if (!sessionId) return
     setLosses([])
     setXis([])
-    await startOptimize(sessionId, { n_calls: nCalls })
+    const payload: any = { n_calls: nCalls }
+    const s = String(randSeed ?? '').trim()
+    if (s !== '' && !Number.isNaN(Number(s))) {
+      try {
+        payload.random_state = parseInt(s)
+      } catch {}
+    }
+    await startOptimize(sessionId, payload)
   }
 
   async function onStopOptimize() {
@@ -256,7 +300,14 @@ export default function App() {
       <fieldset>
         <legend>手动电压</legend>
         <input style={{ minWidth: 240 }} type="text" value={voltsText} onChange={(e) => setVoltsText(e.target.value)} />
-        <button type="button" disabled={!sessionId} onClick={onApplyVoltages}>应用并刷新波形</button>
+        <button type="button" disabled={!sessionId || status.running} onClick={onApplyVoltages}>应用并刷新波形</button>
+        <button type="button" disabled={!sessionId || status.running || !bestVolts || bestVolts.length === 0} onClick={onApplyBestVoltages} style={{ marginLeft: 8 }}>应用最优电压</button>
+        <button type="button" disabled={!bestVolts || bestVolts.length === 0} onClick={onCopyBestVoltages} style={{ marginLeft: 8 }}>复制最优电压</button>
+        {status.running ? (
+          <div style={{ marginTop: 6, fontSize: 12, color: '#d97706' }}>
+            优化进行中，已暂时禁止手动下发电压。
+          </div>
+        ) : null}
         <div style={{ marginTop: 6, fontSize: 12, color: '#98a2b3' }}>
           当前电压：[{currVolts.map(v => Number.isFinite(v) ? v.toFixed(3) : String(v)).join(', ')}]
         </div>
@@ -270,6 +321,16 @@ export default function App() {
         <label>
           迭代次数
           <input type="number" min={1} value={nCalls} onChange={(e) => setNCalls(parseInt(e.target.value || '1'))} />
+        </label>
+        <label style={{ marginLeft: 8 }}>
+          随机种子
+          <input
+            type="number"
+            placeholder="可选，如 42"
+            value={randSeed}
+            onChange={(e) => setRandSeed(e.target.value)}
+            style={{ width: 120 }}
+          />
         </label>
         <button type="button" disabled={!sessionId} onClick={onStartOptimize}>开始优化</button>
         <button type="button" disabled={!sessionId} onClick={onStopOptimize}>停止</button>
