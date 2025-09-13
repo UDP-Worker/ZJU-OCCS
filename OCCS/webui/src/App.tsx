@@ -35,6 +35,9 @@ export default function App() {
 
   const [voltsText, setVoltsText] = useState('0,0,0')
   const [nCalls, setNCalls] = useState(5)
+  // 全局电压边界（快捷统一设置）
+  const [globalLow, setGlobalLow] = useState(-1)
+  const [globalHigh, setGlobalHigh] = useState(1)
 
   const wsRef = useRef<WebSocket | null>(null)
   const [wsReady, setWsReady] = useState(false)
@@ -54,7 +57,7 @@ export default function App() {
   // Adjust bounds size when DAC changes
   useEffect(() => {
     setBounds((prev) => {
-      const next = Array.from({ length: dac }, (_, i) => prev[i] ?? { low: -1, high: 1 })
+      const next = Array.from({ length: dac }, (_, i) => prev[i] ?? { low: globalLow, high: globalHigh })
       return next
     })
     setVoltsText(Array.from({ length: dac }).fill('0').join(','))
@@ -201,6 +204,14 @@ export default function App() {
         </label>
         <div style={{ marginTop: 8 }}>
           <div style={{ fontSize: 12, opacity: 0.8 }}>每通道电压范围（低/高，默认 -1..1）</div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '6px 0' }}>
+            <span style={{ fontSize: 12, opacity: 0.8 }}>统一设置：</span>
+            <input type="number" step="any" value={globalLow} onChange={(e) => setGlobalLow(parseFloat(e.target.value))} style={{ width: 80 }} />
+            <span>~</span>
+            <input type="number" step="any" value={globalHigh} onChange={(e) => setGlobalHigh(parseFloat(e.target.value))} style={{ width: 80 }} />
+            <button type="button" onClick={() => setBounds(Array.from({ length: dac }, () => ({ low: globalLow, high: globalHigh })))}>应用到所有通道</button>
+            <button type="button" onClick={() => { if (bounds.length > 0) { setGlobalLow(bounds[0].low); setGlobalHigh(bounds[0].high) } }}>取 ch0</button>
+          </div>
           {bounds.map((b, i) => (
             <div key={i} style={{ display: 'inline-flex', alignItems: 'center', marginRight: 8 }}>
               <span style={{ fontSize: 12, opacity: 0.8 }}>ch{i}:</span>
