@@ -29,5 +29,12 @@ cd OCCS/webui && npm install && npm run dev   # dev proxy on :5173
 
 More docs (architecture, API, and workflows): see the language-specific READMEs above.
 
+Docker image (recommended)
+- Download the prebuilt image tarball from the GitHub Release assets, e.g. `occs-web.tar.gz`.
+- Load it: `docker load -i occs-web.tar.gz` (note the image name:tag printed).
+- Run: `docker run --rm -p 8000:8000 <image:tag>` then open `http://127.0.0.1:8000/`.
+- Optional: enable real hardware with `-e OCCS_REAL_AVAILABLE=1`.
+- Persist uploads (optional): `-v $(pwd)/uploads:/tmp/occs_uploads` to keep uploaded target CSVs.
+
 License
 This project is licensed under the terms of the LICENSE file in this repository.

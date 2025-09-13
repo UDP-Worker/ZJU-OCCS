@@ -88,6 +88,23 @@ docker run --rm -p 8000:8000 occs-web:local
 docker run --rm -e OCCS_REAL_AVAILABLE=1 -p 8000:8000 occs-web:local
 ```
 
+使用 GitHub Releases 提供的预构建镜像：
+
+```bash
+# 1）从 Release 附件中下载 occs-web.tar.gz
+# 2）加载镜像
+docker load -i occs-web.tar.gz
+
+# docker 会打印镜像名与标签（例如 occs-web:0.1.1）
+# 3）运行（请将 <image:tag> 替换为实际值）
+docker run --rm -p 8000:8000 <image:tag>
+
+# 可选：启用真实硬件并持久化上传目录
+docker run --rm -e OCCS_REAL_AVAILABLE=1 \
+  -v $(pwd)/uploads:/tmp/occs_uploads \
+  -p 8000:8000 <image:tag>
+```
+
 ### 5）使用流程
 
 - 选择后端（默认 mock）。真实硬件默认关闭，需将环境变量 `OCCS_REAL_AVAILABLE=1` 以启用。
