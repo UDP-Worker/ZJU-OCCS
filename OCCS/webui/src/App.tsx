@@ -4,7 +4,8 @@ import { WaveformChart } from './components/WaveformChart'
 import { LossChart } from './components/LossChart'
 import { OptimizerControls } from './components/OptimizerControls'
 import { StatusBar } from './components/StatusBar'
-import { DiagnosticsPanel } from './components/DiagnosticsPanel'
+// Diagnostics chart for xi
+import { XiChart } from './components/XiChart'
 import { getBackends, createSession, getResponse, postVoltages, startOptimize, stopOptimize, getSessionStatus, getHistory, getVoltages, uploadTarget } from './api/client'
 import { connectSessionStream, type StreamMessage } from './api/ws'
 
@@ -28,6 +29,7 @@ export default function App() {
   const [currVolts, setCurrVolts] = useState<number[]>([])
   const [bestVolts, setBestVolts] = useState<number[] | null>(null)
   const [xi, setXi] = useState<number | null>(null)
+  const [xis, setXis] = useState<number[]>([])
   const [targetPath, setTargetPath] = useState<string | null>(null)
   const [targetLabel, setTargetLabel] = useState<string | null>(null)
 
@@ -74,6 +76,11 @@ export default function App() {
         const hist = await getHistory(sessionId)
         const losses = (hist.history || []).map((h: any) => h.loss).filter((v: any) => typeof v === 'number')
         if (losses.length) setLosses(losses)
+        // xi sequence from history diagnostics
+        const xisHist = (hist.history || [])
+          .map((h: any) => (h && h.diag ? h.diag.xi : undefined))
+          .filter((v: any) => typeof v === 'number' && isFinite(v))
+        if (xisHist.length) setXis(xisHist)
         // 最新 x 作为当前电压
         const last = (hist.history || []).slice(-1)[0]
         if (last && last.x && Array.isArray(last.x)) setCurrVolts(last.x as number[])
@@ -115,7 +122,11 @@ export default function App() {
         if (msg.x && Array.isArray(msg.x)) setCurrVolts(msg.x)
         const bx: any = (msg as any).best_x
         if (bx && Array.isArray(bx)) setBestVolts(bx as number[])
-        if (typeof (msg as any).xi === 'number') setXi((msg as any).xi as number)
+        if (typeof (msg as any).xi === 'number') {
+          const v = (msg as any).xi as number
+          setXi(v)
+          setXis((arr) => [...arr, v])
+        }
       } else if (msg.type === 'waveform') {
         setWave({ lambda: msg.lambda, signal: msg.signal, target: msg.target })
       }
@@ -144,6 +155,7 @@ export default function App() {
   async function onStartOptimize() {
     if (!sessionId) return
     setLosses([])
+    setXis([])
     await startOptimize(sessionId, { n_calls: nCalls })
   }
 
@@ -260,7 +272,18 @@ export default function App() {
         </div>
       </fieldset>
 
-      <DiagnosticsPanel xi={xi} />
+      <fieldset>
+        <legend>诊断</legend>
+        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 16 }}>
+          <div style={{ flex: 1 }}>
+            <XiChart xis={xis} />
+          </div>
+          <div style={{ minWidth: 160 }}>
+            <div style={{ fontSize: 12, color: '#98a2b3' }}>当前 xi</div>
+            <div style={{ fontSize: 18 }}>{xi != null && isFinite(xi) ? xi.toFixed(4) : '—'}</div>
+          </div>
+        </div>
+      </fieldset>
 
       <StatusBar connected={!!connected} sessionId={sessionId} />
     </div>

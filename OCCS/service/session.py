@@ -188,6 +188,20 @@ class OptimizerSession:
                     x0_arr = np.asarray(list(x0), dtype=float)
                     y0, diag0 = self.optimizer.hardware_objective(x0_arr)
                     self.optimizer.observe(x0_arr, y0)
+                    # Enrich initial diagnostics to include exploration param and GP uncertainty
+                    try:
+                        max_std0, max_var0 = self.optimizer._compute_gp_max_uncertainty(n_samples=1024, seed=12345)  # type: ignore[attr-defined]
+                    except Exception:
+                        max_std0, max_var0 = float("nan"), float("nan")
+                    diag0["gp_max_std"] = max_std0
+                    diag0["gp_max_var"] = max_var0
+                    try:
+                        pname = self.optimizer._choose_param_name()  # type: ignore[attr-defined]
+                        ak = self.optimizer._get_acq_kwargs()  # type: ignore[attr-defined]
+                        pval = float(ak.get(pname, self.optimizer._default_param_value(pname)))  # type: ignore[attr-defined]
+                        diag0[pname] = pval
+                    except Exception:
+                        pass
                     item0 = {"x": x0_arr, "loss": float(y0), "diag": diag0}
                     self.history.append(item0)
                     if y0 < local_best:

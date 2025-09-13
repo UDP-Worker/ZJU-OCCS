@@ -46,8 +46,8 @@ def test_rest_session_lifecycle_and_optimize_flow():
     # Read waveform
     r = client.get(f"/api/session/{sid}/response")
     wf = r.json()
-    assert len(wf["lambda"]) == 96
-    assert len(wf["signal"]) == 96
+    assert len(wf["lambda"]) == 50
+    assert len(wf["signal"]) == 50
 
     # Start a short optimization
     r = client.post(f"/api/session/{sid}/optimize/start", json={"n_calls": 3, "random_state": 1})

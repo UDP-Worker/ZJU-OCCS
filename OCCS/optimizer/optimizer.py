@@ -67,6 +67,12 @@ class BayesianOptimizer:
                 self._skopt_kwargs["acq_func"] = self._acq_func or "EI"
             self._opt = Optimizer(dimensions=self.dimensions, **self._skopt_kwargs)
 
+        # ---- State for incremental (step-by-step) adaptive exploration ----
+        self._t_seen: int = 0
+        self._best_loss_seen: float = float("inf")
+        self._no_improve: int = 0
+        self._param_value_cache: Optional[float] = None  # last used xi/kappa
+
     # ------------------ Small helpers for soft rebuilding & exploration param ------------
     def _get_acq_kwargs(self) -> Dict[str, Any]:
         """Return a shallow copy of current acq_func_kwargs (may be absent)."""
@@ -126,6 +132,8 @@ class BayesianOptimizer:
         # We are backfilling full history via tell(...), so skip skopt's initial design
         # to avoid repeating the same initial samples after each soft rebuild.
         kwargs["n_initial_points"] = 0
+        # Keep our copy in sync so subsequent reads reflect the latest value
+        self._skopt_kwargs["acq_func_kwargs"] = dict(merged)
         return Optimizer(dimensions=self.dimensions, **kwargs)
 
     @property
@@ -149,11 +157,80 @@ class BayesianOptimizer:
         Evaluate the objective at ``x`` (or at a suggested point if None),
         report it to skopt and return (loss, diag).
         """
+        # Decide which parameter we are adapting
+        param_name = self._choose_param_name()  # 'xi' or 'kappa'
+
+        # Snapshot history before this observation (to backfill on rebuild)
+        try:
+            prev_Xi = list(getattr(self.optimizer, "Xi", []))
+            prev_yi = list(getattr(self.optimizer, "yi", []))
+        except Exception:
+            prev_Xi, prev_yi = [], []
+        prior_best = float(np.min(prev_yi)) if len(prev_yi) > 0 else float("inf")
+
+        # Evaluate objective (at suggested x if not provided) and report to skopt
         if x is None:
             x = self.suggest()
         x = np.asarray(x, dtype=float)
         loss, diag = self.hardware_objective(x)
         self.observe(x, loss)
+
+        # Update counters
+        try:
+            self._t_seen = int(len(prev_yi) + 1)
+        except Exception:
+            self._t_seen = max(1, int(self._t_seen) + 1)
+
+        # Enrich diagnostics to match what run() provides
+        try:
+            # Estimate current maximum predictive std/var over the space
+            max_std, max_var = self._compute_gp_max_uncertainty(n_samples=1024, seed=12345)
+        except Exception:
+            max_std, max_var = float("nan"), float("nan")
+        diag["gp_max_std"] = max_std
+        diag["gp_max_var"] = max_var
+
+        # Current exploration parameter value used during this iteration
+        if self._param_value_cache is None:
+            ak0 = self._get_acq_kwargs()
+            self._param_value_cache = float(ak0.get(param_name, self._default_param_value(param_name)))
+        param_value_now = float(self._param_value_cache)
+        diag[param_name] = param_value_now
+
+        # Adaptive exploration update for the NEXT iteration
+        improved = (float(prior_best) - float(loss)) > max(0.01 * abs(float(prior_best)), 1e-12)
+        if improved:
+            self._best_loss_seen = float(loss)
+            self._no_improve = 0
+            new_val = max(self._XI_MIN, param_value_now * self._COOL_GAMMA)
+        else:
+            self._no_improve += 1
+            # base schedule at t (1-based)
+            base = max(self._XI_MIN, self._C_INIT / (self._t_seen ** 0.5))
+            if self._no_improve >= self._STALL_K:
+                new_val = min(self._BOOST_BETA * base, self._XI_MAX)
+            else:
+                new_val = base
+
+        # Rebuild optimizer with updated exploration parameter if it changed materially
+        if abs(new_val - param_value_now) > self._DELTA_TOL:
+            try:
+                ak = self._get_acq_kwargs()
+                ak[param_name] = float(new_val)
+                if self._acq_func == "gp_hedge":
+                    # keep both present for hedge mixtures
+                    ak.setdefault("xi", float(new_val))
+                    ak.setdefault("kappa", 1.96)
+                new_opt = self._build_optimizer_with(ak)
+                # Backfill with history BEFORE this observation (keeps parity with run())
+                if prev_Xi and prev_yi:
+                    new_opt.tell(prev_Xi, prev_yi)
+                self._opt = new_opt
+                self._param_value_cache = float(new_val)
+            except Exception:
+                # If rebuild fails, keep current optimizer and cache unchanged
+                pass
+
         return loss, diag
 
     def _sample_points(self, n: int, rng: np.random.Generator) -> np.ndarray:
