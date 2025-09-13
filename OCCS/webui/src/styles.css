@@ -124,7 +124,13 @@ h1, h2, h3 { margin: 0 0 var(--space-2); font-weight: 600; }
   padding: 8px 12px;
   border-radius: 8px;
   cursor: pointer;
-  transition: background .15s ease, border-color .15s ease, transform .02s ease, box-shadow .15s ease, filter .08s ease;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-decoration: none;
+  vertical-align: middle;
+  line-height: 1;
+  transition: background .15s ease, border-color .15s ease, transform .02s ease, box-shadow .15s ease, filter .08s ease, opacity .15s ease;
 }
 .btn:hover { border-color: #3b4151; background: rgba(255,255,255,.03); }
 .btn:active { transform: translateY(1px); filter: brightness(0.95); }
@@ -133,6 +139,12 @@ h1, h2, h3 { margin: 0 0 var(--space-2); font-weight: 600; }
 .btn-primary:hover { background: #0f906f; border-color: #0f906f; }
 .btn-primary:active { background: #0c7e61; border-color: #0c7e61; box-shadow: inset 0 1px 2px rgba(0,0,0,.2); }
 .btn-ghost { border-color: transparent; background: transparent; color: var(--muted); }
+
+/* Press feedback and cooldown */
+.btn.pressed { background: var(--accent-contrast); border-color: var(--accent); }
+.btn-primary.pressed { background: #0f906f; border-color: #0f906f; }
+.btn-ghost.pressed { background: var(--accent-contrast); border-color: var(--accent); color: var(--fg); }
+.btn[data-cooling="1"], .btn[aria-busy="true"] { pointer-events: none; opacity: .8; }
 
 .spacer { height: var(--space-3); }
 
@@ -144,3 +156,6 @@ h1, h2, h3 { margin: 0 0 var(--space-2); font-weight: 600; }
 /* Make chart cards equal height */
 .card.stretch { display: flex; flex-direction: column; }
 .card.stretch .chart-box { flex: 1; }
+
+/* Ensure cards in grids align and are equal height */
+.grid .card { margin-top: 0; height: 100%; }

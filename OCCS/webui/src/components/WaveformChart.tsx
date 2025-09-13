@@ -5,70 +5,73 @@ export function WaveformChart({ data, themeKey }: { data: { lambda: number[]; si
   useEffect(() => {
     const cvs = canvasRef.current
     if (!cvs) return
-    const ctx = cvs.getContext('2d')!
-    const w = (cvs.width = cvs.clientWidth)
-    const h = (cvs.height = cvs.clientHeight)
-    ctx.clearRect(0, 0, w, h)
-    const styles = getComputedStyle(document.documentElement)
-    const card = styles.getPropertyValue('--card').trim() || '#11151c'
-    const border = styles.getPropertyValue('--border').trim() || '#2a2f3a'
-    const muted = styles.getPropertyValue('--muted').trim() || '#98a2b3'
-    const fg = styles.getPropertyValue('--fg').trim() || '#e6e9ef'
-    ctx.fillStyle = card
-    ctx.fillRect(0, 0, w, h)
-    const { lambda, signal, target } = data
-    if (!lambda?.length || !signal?.length) {
-      ctx.fillStyle = muted
-      ctx.fillText('暂无波形数据', 10, 20)
-      return
-    }
-    const N = Math.min(lambda.length, signal.length)
-    const sig = signal.slice(0, N)
-    const tgt = target?.length ? target.slice(0, Math.min(N, target.length)) : []
-    const minv = Math.min(...sig, ...(tgt.length ? tgt : [Infinity]))
-    const maxv = Math.max(...sig, ...(tgt.length ? tgt : [-Infinity]))
-    const yScale = (v: number) => {
-      const denom = maxv - minv || 1
-      return h - ((v - minv) / denom) * (h - 20) - 10
-    }
-    const xScale = (i: number) => (i / (N - 1 || 1)) * (w - 20) + 10
-    // grid
-    ctx.strokeStyle = border
-    ctx.lineWidth = 1
-    ctx.beginPath()
-    for (let i = 0; i <= 4; i++) {
-      const yy = (i / 4) * (h - 20) + 10
-      ctx.moveTo(10, yy)
-      ctx.lineTo(w - 10, yy)
-    }
-    ctx.stroke()
-    // target
-    if (tgt.length) {
-      ctx.strokeStyle = '#e57373'
-      ctx.lineWidth = 1.5
+    const raf = requestAnimationFrame(() => {
+      const ctx = cvs.getContext('2d')!
+      const w = (cvs.width = cvs.clientWidth)
+      const h = (cvs.height = cvs.clientHeight)
+      ctx.clearRect(0, 0, w, h)
+      const styles = getComputedStyle(document.documentElement)
+      const card = styles.getPropertyValue('--card').trim() || '#11151c'
+      const border = styles.getPropertyValue('--border').trim() || '#2a2f3a'
+      const muted = styles.getPropertyValue('--muted').trim() || '#98a2b3'
+      const fg = styles.getPropertyValue('--fg').trim() || '#e6e9ef'
+      ctx.fillStyle = card
+      ctx.fillRect(0, 0, w, h)
+      const { lambda, signal, target } = data
+      if (!lambda?.length || !signal?.length) {
+        ctx.fillStyle = muted
+        ctx.fillText('暂无波形数据', 10, 20)
+        return
+      }
+      const N = Math.min(lambda.length, signal.length)
+      const sig = signal.slice(0, N)
+      const tgt = target?.length ? target.slice(0, Math.min(N, target.length)) : []
+      const minv = Math.min(...sig, ...(tgt.length ? tgt : [Infinity]))
+      const maxv = Math.max(...sig, ...(tgt.length ? tgt : [-Infinity]))
+      const yScale = (v: number) => {
+        const denom = maxv - minv || 1
+        return h - ((v - minv) / denom) * (h - 20) - 10
+      }
+      const xScale = (i: number) => (i / (N - 1 || 1)) * (w - 20) + 10
+      // grid
+      ctx.strokeStyle = border
+      ctx.lineWidth = 1
       ctx.beginPath()
-      ctx.moveTo(xScale(0), yScale(tgt[0]))
-      for (let i = 1; i < tgt.length; i++) ctx.lineTo(xScale(i), yScale(tgt[i]))
+      for (let i = 0; i <= 4; i++) {
+        const yy = (i / 4) * (h - 20) + 10
+        ctx.moveTo(10, yy)
+        ctx.lineTo(w - 10, yy)
+      }
       ctx.stroke()
-    }
-    // signal
-    ctx.strokeStyle = '#5b9cf6'
-    ctx.lineWidth = 2
-    ctx.beginPath()
-    ctx.moveTo(xScale(0), yScale(sig[0]))
-    for (let i = 1; i < sig.length; i++) ctx.lineTo(xScale(i), yScale(sig[i]))
-    ctx.stroke()
+      // target
+      if (tgt.length) {
+        ctx.strokeStyle = '#e57373'
+        ctx.lineWidth = 1.5
+        ctx.beginPath()
+        ctx.moveTo(xScale(0), yScale(tgt[0]))
+        for (let i = 1; i < tgt.length; i++) ctx.lineTo(xScale(i), yScale(tgt[i]))
+        ctx.stroke()
+      }
+      // signal
+      ctx.strokeStyle = '#5b9cf6'
+      ctx.lineWidth = 2
+      ctx.beginPath()
+      ctx.moveTo(xScale(0), yScale(sig[0]))
+      for (let i = 1; i < sig.length; i++) ctx.lineTo(xScale(i), yScale(sig[i]))
+      ctx.stroke()
 
-    // legend
-    const lx = 16, ly = 16, ll = 28
-    // signal legend
-    ctx.strokeStyle = '#5b9cf6'; ctx.lineWidth = 2
-    ctx.beginPath(); ctx.moveTo(lx, ly); ctx.lineTo(lx + ll, ly); ctx.stroke()
-    ctx.fillStyle = fg; ctx.fillText('响应', lx + ll + 6, ly + 4)
-    // target legend
-    ctx.strokeStyle = '#e57373'; ctx.lineWidth = 1.5
-    ctx.beginPath(); ctx.moveTo(lx, ly + 16); ctx.lineTo(lx + ll, ly + 16); ctx.stroke()
-    ctx.fillStyle = fg; ctx.fillText('目标', lx + ll + 6, ly + 20)
+      // legend
+      const lx = 16, ly = 16, ll = 28
+      // signal legend
+      ctx.strokeStyle = '#5b9cf6'; ctx.lineWidth = 2
+      ctx.beginPath(); ctx.moveTo(lx, ly); ctx.lineTo(lx + ll, ly); ctx.stroke()
+      ctx.fillStyle = fg; ctx.fillText('响应', lx + ll + 6, ly + 4)
+      // target legend
+      ctx.strokeStyle = '#e57373'; ctx.lineWidth = 1.5
+      ctx.beginPath(); ctx.moveTo(lx, ly + 16); ctx.lineTo(lx + ll, ly + 16); ctx.stroke()
+      ctx.fillStyle = fg; ctx.fillText('目标', lx + ll + 6, ly + 20)
+    })
+    return () => cancelAnimationFrame(raf)
   }, [data, themeKey])
   return (
     <div className="chart-box">

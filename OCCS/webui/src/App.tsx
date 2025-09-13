@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react'
+import React, { useEffect, useMemo, useRef, useState, useLayoutEffect } from 'react'
 // Components below are wired inline for now; placeholders kept for future use
 import { WaveformChart } from './components/WaveformChart'
 import { LossChart } from './components/LossChart'
@@ -57,7 +57,39 @@ export default function App() {
     } catch {}
   }, [])
 
+  // Global press feedback + cooldown to prevent rapid re-clicks
   useEffect(() => {
+    const COOLDOWN_MS = 1000
+    const PRESS_MS = 1000
+    const onClick = (ev: MouseEvent) => {
+      const el = (ev.target as HTMLElement)?.closest('.btn') as HTMLElement | null
+      if (!el) return
+      if (el.hasAttribute('disabled') || el.getAttribute('aria-busy') === 'true') {
+        ev.preventDefault(); ev.stopPropagation();
+        return
+      }
+      const last = (el as any).__occs_last_click as number | undefined
+      const now = Date.now()
+      if (typeof last === 'number' && now - last < COOLDOWN_MS) {
+        ev.preventDefault(); ev.stopPropagation();
+        return
+      }
+      ;(el as any).__occs_last_click = now
+      el.setAttribute('data-cooling', '1')
+      el.classList.add('pressed')
+      const t1 = window.setTimeout(() => el.classList.remove('pressed'), PRESS_MS)
+      const t2 = window.setTimeout(() => el.removeAttribute('data-cooling'), COOLDOWN_MS)
+      // Clean timers if element is removed quickly
+      const obs = new MutationObserver(() => {
+        if (!document.contains(el)) { clearTimeout(t1); clearTimeout(t2); obs.disconnect() }
+      })
+      obs.observe(document.documentElement, { childList: true, subtree: true })
+    }
+    document.addEventListener('click', onClick, true)
+    return () => document.removeEventListener('click', onClick, true)
+  }, [])
+
+  useLayoutEffect(() => {
     const root = document.documentElement
     if (theme === 'auto') root.removeAttribute('data-theme')
     else root.setAttribute('data-theme', theme)
@@ -375,7 +407,7 @@ export default function App() {
           <button className="btn btn-primary" type="button" disabled={!sessionId} onClick={onStartOptimize}>开始优化</button>
           <button className="btn" type="button" disabled={!sessionId} onClick={onStopOptimize}>停止</button>
           {sessionId ? (
-            <a className="btn btn-ghost" href={`/api/session/${sessionId}/history.csv`} target="_blank" rel="noreferrer">下载历史 CSV</a>
+            <a className="btn" href={`/api/session/${sessionId}/history.csv`} target="_blank" rel="noreferrer" role="button">下载历史 CSV</a>
           ) : null}
         </div>
         <div className="muted" style={{ marginTop: 8 }}>
