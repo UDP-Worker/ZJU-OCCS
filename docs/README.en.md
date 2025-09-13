@@ -1,87 +1,100 @@
-# OCCS: Optical Chip Curve Search
+# OCCS: Optical Chip Control & Search (Web UI + FastAPI)
 
 [English](./README.en.md) | [简体中文](./README.zh-CN.md)
 
-Lightweight simulator + Bayesian optimization toolkit for tuning optical chip voltages so that the resulting spectrum matches a target curve. The codebase is modular and test-backed, with utilities to log and visualize optimization progress, including GP uncertainty.
+OCCS provides an interactive web application and a Python service layer to control optical hardware (mock or real) and optimize voltages so the measured spectrum matches a target curve. The web UI streams waveforms and optimization diagnostics in real time, while the core library remains reusable and test-backed.
 
-## Key Features
+## Highlights
 
-- Mock hardware and simple, deterministic optical response simulator
-- Curve-similarity objective with alignment, robust loss, and optional band weights
-- skopt-based Bayesian optimization with per-iteration GP max uncertainty logging
-- Plots (loss, running min, GP uncertainty) and CSV export for reproducible runs
+- Web UI (Vite + React + TypeScript) for live waveform and loss charts
+- FastAPI backend with REST + WebSocket for sessions and real-time progress
+- Manual voltage control and bounds enforcement; CSV history download
+- Core modules for simulation, objectives, and skopt-based Bayesian optimization
 
-## Project Structure
+## Architecture
 
-- `OCCS/`
-  - `connector/`: Hardware adapters
-    - `mock_hardware.py`: In-memory mock device used in tests and examples
-    - `real_hardware.py`: API placeholder for a real DAC/OSA stack
-  - `simulate/`: Simple optical response model (`get_response`)
-  - `optimizer/`: Objective, optimizer wrapper, and visualization helpers
-    - `objective.py`: CurveObjective/HardwareObjective and CSV-based builders
-    - `optimizer.py`: Thin wrapper over `skopt.Optimizer` with logging of GP uncertainty
-    - `viz.py`: Plot loss and GP uncertainty, export CSV logs
-  - `data/optimization/`: Default output location for plots/CSV created by tests or examples
-- `tests/`: Pytest-based tests that also generate example outputs (plots + logs)
-- `environment.yml`: Conda environment file (NumPy, scikit-optimize, Matplotlib, PyTest, etc.)
+- `OCCS/optimizer`: objective functions, optimizer wrapper, and offline visualization
+- `OCCS/connector`: hardware interfaces (`MockHardware` and `RealHardware` placeholder)
+- `OCCS/service`: FastAPI app, session manager, and hardware factory
+  - REST: create session, set voltages, fetch waveform, start/stop optimization, export history
+  - WebSocket: stream progress, waveform snapshots, and status
+- `OCCS/webui`: single-page app served by the backend when built
 
 ## Quick Start
 
-1) Create environment
+### 1) Python dependencies
+
+Use Conda/Mamba (recommended):
 
 ```bash
-# Using conda/mamba
 mamba env create -f environment.yml  # or: conda env create -f environment.yml
-mamba activate ZJU-OCCS             # or: conda activate ZJU-OCCS
+mamba activate ZJU-OCCS
+
+# For the web service
+pip install fastapi uvicorn
 ```
 
-2) Run tests (also generates example outputs)
+Or with plain pip (Python >= 3.10):
 
 ```bash
-pytest -q
+pip install -e .
+pip install numpy scipy scikit-learn scikit-optimize matplotlib fastapi uvicorn
 ```
 
-Outputs appear under `OCCS/data/optimization/`:
+### 2) Start the backend
 
-- `loss_curve_*.png`: Loss vs iteration with running min; GP max std overlay when available
-- `log_*.csv`: Iteration-by-iteration logs including voltages, loss, delta_nm, and GP uncertainty (`gp_max_std`, `gp_max_var`)
-
-3) Minimal example (script excerpt)
-
-```python
-import numpy as np
-from OCCS.connector import MockHardware
-from OCCS.optimizer.objective import create_hardware_objective
-from OCCS.optimizer.optimizer import BayesianOptimizer
-from OCCS.optimizer.viz import save_loss_history_plot, save_uncertainty_history_plot, save_history_csv
-
-lam = np.linspace(1.55e-6, 1.56e-6, 200)
-bounds = [(-1.0, 1.0)] * 3
-hw = MockHardware(dac_size=3, wavelength=lam, voltage_bounds=bounds)
-
-# Build objective from a two-row CSV (first row: wavelength, second: target)
-obj = create_hardware_objective(hw, target_csv_path="OCCS/data/ideal_waveform.csv", M=200)
-
-bo = BayesianOptimizer(obj, dimensions=bounds, base_estimator="GP", acq_func="EI", random_state=42)
-result = bo.run(n_calls=30, x0=[0.0, 0.0, 0.0])
-
-save_loss_history_plot(result, "OCCS/data/optimization/loss_curve_example.png", title="BO Loss")
-save_uncertainty_history_plot(result, "OCCS/data/optimization/gp_uncertainty.png", metric="std", title="GP Max Std")
-save_history_csv(result, "OCCS/data/optimization/log_example.csv")
+```bash
+occs-web --host 127.0.0.1 --port 8000
+# Alternatively: python -m OCCS.service.app
 ```
 
-## Implementation Notes
+The API will be available under `http://127.0.0.1:8000/api`.
 
-- The GP max uncertainty per iteration is estimated via random sampling over the bounded space using the current surrogate; early iterations may show NaN until the GP is fitted.
-- The objective operates on normalised shapes with optional small-range wavelength alignment and Huber loss; see `ObjectiveConfig` for tuning.
+### 3) Run the Web UI (dev or production)
 
-## Contributing
+Dev (hot reload via Vite proxy):
 
-- Code style: NumPy-style docstrings; prefer small, focused modules and tests.
-- Tests: run `pytest -q`. Contributions that add features should include tests and minimal docs.
+```bash
+cd OCCS/webui
+npm install  # or: pnpm install / yarn
+npm run dev
+# Open http://127.0.0.1:5173 (proxy to backend /api, including WS)
+```
+
+Production build (served by FastAPI):
+
+```bash
+cd OCCS/webui
+npm run build
+# Restart the backend; open http://127.0.0.1:8000/
+```
+
+### 4) Using the app
+
+- Select backend (mock by default). Real hardware is disabled unless `OCCS_REAL_AVAILABLE=1`.
+- Configure wavelength grid and voltage bounds; optionally upload a target CSV.
+- Create a session, adjust voltages manually, and refresh waveforms.
+- Start optimization to stream loss and diagnostics; download history CSV anytime.
+
+## API Overview (REST)
+
+- `GET /api/backends` → available backends
+- `POST /api/session` → create session; returns `{ session_id }`
+- `GET /api/session/{id}/status` → running state, iter, best loss, current best x
+- `DELETE /api/session/{id}` → close the session
+- `POST /api/session/{id}/voltages` → set voltages
+- `GET /api/session/{id}/response` → waveform `{ lambda, signal, target }`
+- `POST /api/session/{id}/optimize/start` → start optimization
+- `POST /api/session/{id}/optimize/stop` → stop optimization
+- `GET /api/session/{id}/history(.csv)` → fetch/export history
+
+WebSocket: `GET /api/session/{id}/stream` → emits `status`, `progress`, `waveform`, `done`, `error`.
+
+## Development & Tests
+
+- Run tests (also generates sample plots/CSVs): `pytest -q`
+- Linting/formatting: follow existing code style; add tests for new features
 
 ## License
 
 This project is licensed under the terms of the LICENSE file in this repository.
-

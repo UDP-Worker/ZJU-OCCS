@@ -1,87 +1,100 @@
-# OCCS：光芯片曲线寻优工具
+# OCCS：光芯片控制与寻优（Web UI + FastAPI）
 
 [English](./README.en.md) | [简体中文](./README.zh-CN.md)
 
-轻量级的光芯片响应仿真 + 贝叶斯优化工具包，用于调节电压，使测得光谱尽可能匹配目标曲线。项目模块化、含单元测试，并提供优化过程的日志与可视化（包含高斯过程不确定度）。
+OCCS 面向实验工程师提供一个交互式网页界面与 Python 服务层，可连接模拟或真实硬件，实时展示波形与优化过程，并通过贝叶斯优化自动搜索使光谱逼近目标曲线。核心算法与模块保持可复用，并附有测试用例。
 
 ## 主要特性
 
-- 模拟硬件与可复现的简化光学响应模型
-- 曲线相似度目标：小范围对齐、稳健损失（Huber/L2）、可选分区权重
-- 基于 skopt 的贝叶斯优化；逐迭代记录 GP 最大不确定度
-- 输出图表（损失、running min、GP 不确定度）与 CSV 日志
+- Web 前端（Vite + React + TS）：实时波形与 loss 曲线、诊断信息
+- FastAPI 后端：REST + WebSocket，支持会话与实时推送
+- 手动电压与边界裁剪；CSV 历史下载
+- 可复用核心：仿真、目标函数与基于 skopt 的贝叶斯优化
 
-## 项目结构
+## 架构概览
 
-- `OCCS/`
-  - `connector/`：硬件适配层
-    - `mock_hardware.py`：内存模拟设备（测试/示例使用）
-    - `real_hardware.py`：真实硬件接口占位（API 说明）
-  - `simulate/`：简化的光学响应模型（`get_response`）
-  - `optimizer/`：目标函数、优化封装、可视化
-    - `objective.py`：曲线/硬件目标与 CSV 构造器
-    - `optimizer.py`：`skopt.Optimizer` 封装，记录 GP 不确定度
-    - `viz.py`：绘制损失与不确定度，导出 CSV
-  - `data/optimization/`：测试/示例的默认输出目录（图与日志）
-- `tests/`：基于 Pytest 的测试用例（运行时也会生成示例输出）
-- `environment.yml`：Conda 环境文件（依赖包含 NumPy、scikit-optimize、Matplotlib、PyTest 等）
+- `OCCS/optimizer`：目标函数、优化封装、离线可视化
+- `OCCS/connector`：硬件接口（`MockHardware` 与 `RealHardware` 占位）
+- `OCCS/service`：FastAPI 应用、会话管理、硬件工厂
+  - REST：创建会话、写电压、读波形、启动/停止优化、导出历史
+  - WebSocket：推送进度、波形快照与状态
+- `OCCS/webui`：单页应用（构建后由后端静态托管）
 
 ## 快速开始
 
-1）安装环境
+### 1）安装依赖
+
+使用 Conda/Mamba（推荐）：
 
 ```bash
-# 使用 conda/mamba
 mamba env create -f environment.yml  # 或：conda env create -f environment.yml
-mamba activate ZJU-OCCS              # 或：conda activate ZJU-OCCS
+mamba activate ZJU-OCCS
+
+# 启动 Web 服务所需
+pip install fastapi uvicorn
 ```
 
-2）运行测试（同时生成示例输出）
+或使用 pip（Python >= 3.10）：
 
 ```bash
-pytest -q
+pip install -e .
+pip install numpy scipy scikit-learn scikit-optimize matplotlib fastapi uvicorn
 ```
 
-输出位于 `OCCS/data/optimization/`：
+### 2）启动后端
 
-- `loss_curve_*.png`：损失随迭代变化 + running min；若可用，会叠加 GP 最大标准差
-- `log_*.csv`：每次迭代的电压、损失、delta_nm 以及不确定度（`gp_max_std`, `gp_max_var`）
-
-3）最小示例
-
-```python
-import numpy as np
-from OCCS.connector import MockHardware
-from OCCS.optimizer.objective import create_hardware_objective
-from OCCS.optimizer.optimizer import BayesianOptimizer
-from OCCS.optimizer.viz import save_loss_history_plot, save_uncertainty_history_plot, save_history_csv
-
-lam = np.linspace(1.55e-6, 1.56e-6, 200)
-bounds = [(-1.0, 1.0)] * 3
-hw = MockHardware(dac_size=3, wavelength=lam, voltage_bounds=bounds)
-
-# 从两行 CSV 构建目标（第一行：波长；第二行：目标值）
-obj = create_hardware_objective(hw, target_csv_path="OCCS/data/ideal_waveform.csv", M=200)
-
-bo = BayesianOptimizer(obj, dimensions=bounds, base_estimator="GP", acq_func="EI", random_state=42)
-result = bo.run(n_calls=30, x0=[0.0, 0.0, 0.0])
-
-save_loss_history_plot(result, "OCCS/data/optimization/loss_curve_example.png", title="BO Loss")
-save_uncertainty_history_plot(result, "OCCS/data/optimization/gp_uncertainty.png", metric="std", title="GP Max Std")
-save_history_csv(result, "OCCS/data/optimization/log_example.csv")
+```bash
+occs-web --host 127.0.0.1 --port 8000
+# 或：python -m OCCS.service.app
 ```
 
-## 实现说明
+接口位于 `http://127.0.0.1:8000/api`。
 
-- GP 最大不确定度通过在边界内随机采样近似估计；模型尚未拟合的早期步骤可能为 NaN。
-- 目标函数在归一形状上度量差异，并支持小范围波长对齐、Huber 稳健损失与分区加权配置；参见 `ObjectiveConfig`。
+### 3）运行前端（开发或生产）
 
-## 贡献指南
+开发（Vite 代理热更新）：
 
-- 代码风格：NumPy 风格文档字符串；模块小而专注；配套测试。
-- 测试：`pytest -q`。新增功能请附加测试和最小文档。
+```bash
+cd OCCS/webui
+npm install  # 或：pnpm install / yarn
+npm run dev
+# 打开 http://127.0.0.1:5173 （自动代理到后端 /api 与 WS）
+```
+
+生产构建（由后端托管）：
+
+```bash
+cd OCCS/webui
+npm run build
+# 重启后端；访问 http://127.0.0.1:8000/
+```
+
+### 4）使用流程
+
+- 选择后端（默认 mock）。真实硬件默认关闭，需将环境变量 `OCCS_REAL_AVAILABLE=1` 以启用。
+- 配置波长网格与电压边界；可上传理想目标 CSV。
+- 创建会话，手动下发电压并刷新波形。
+- 启动优化，实时查看 loss 与诊断；可随时下载历史 CSV。
+
+## API 一览（REST）
+
+- `GET /api/backends` → 可用后端
+- `POST /api/session` → 创建会话，返回 `{ session_id }`
+- `GET /api/session/{id}/status` → 运行态、迭代数、最优损失、当前最优 x
+- `DELETE /api/session/{id}` → 关闭会话
+- `POST /api/session/{id}/voltages` → 写电压
+- `GET /api/session/{id}/response` → 波形 `{ lambda, signal, target }`
+- `POST /api/session/{id}/optimize/start` → 启动优化
+- `POST /api/session/{id}/optimize/stop` → 停止优化
+- `GET /api/session/{id}/history(.csv)` → 获取/导出历史
+
+WebSocket：`GET /api/session/{id}/stream` → 事件包含 `status`、`progress`、`waveform`、`done`、`error`。
+
+## 开发与测试
+
+- 运行测试（会生成示例图与 CSV）：`pytest -q`
+- 代码风格：保持简洁、为新增功能补充测试
 
 ## 许可证
 
 许可证信息见仓库根目录的 LICENSE 文件。
-
