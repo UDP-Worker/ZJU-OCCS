@@ -18,6 +18,7 @@ import numpy as np
 from OCCS.service.hardware import make_hardware
 from OCCS.optimizer.objective import create_hardware_objective, HardwareObjective
 from OCCS.optimizer.optimizer import BayesianOptimizer
+from OCCS.optimizer.estimator import make_gp_base_estimator
 
 
 @dataclass
@@ -72,10 +73,22 @@ class OptimizerSession:
         # Fallback default bounds when none provided: (-1, 1) per channel
         default_dims = [(-1.0, 1.0) for _ in range(int(self.dac_size))]
         dimensions = dims if dims is not None else (self.bounds if self.bounds is not None else default_dims)
+        # Default acquisition: gp_hedge unless explicitly provided
+        kw = dict(self.optimizer_kwargs)
+        kw.setdefault("acq_func", "gp_hedge")
+        # Custom GP base estimator similar to tests
+        try:
+            gp = make_gp_base_estimator(dimensions=dimensions, noise_floor=1e-6, n_restarts=10)
+            kw["base_estimator"] = gp
+        except Exception:
+            # If estimator construction fails (shouldn't), fall back silently
+            pass
+        # Keep the merged kwargs for potential rebuilds later
+        self.optimizer_kwargs = kw
         self.optimizer = BayesianOptimizer(
             self.hw_objective,
             dimensions=dimensions,
-            **dict(self.optimizer_kwargs),
+            **kw,
         )
 
     # ---- Basic operations (Phase 1) ----
@@ -160,11 +173,13 @@ class OptimizerSession:
                 or self.bounds
                 or [(-1.0, 1.0) for _ in range(int(self.dac_size))]
             )
-            self.optimizer = BayesianOptimizer(
-                self.hw_objective,
-                dimensions=dims,
-                **kw,
-            )
+            # Ensure base_estimator remains our custom GP if available
+            if "base_estimator" not in kw:
+                try:
+                    kw["base_estimator"] = make_gp_base_estimator(dimensions=dims, noise_floor=1e-6, n_restarts=10)
+                except Exception:
+                    pass
+            self.optimizer = BayesianOptimizer(self.hw_objective, dimensions=dims, **kw)
             self.optimizer_kwargs = kw
 
         self._stop_evt.clear()
@@ -184,8 +199,13 @@ class OptimizerSession:
                 })
 
                 local_best = float("inf") if self.best_loss is None else float(self.best_loss)
-                if x0 is not None:
+                # Default x0 to origin if not provided (explicit initial evaluation)
+                if x0 is None:
+                    x0_arr = np.zeros(int(self.dac_size), dtype=float)
+                else:
                     x0_arr = np.asarray(list(x0), dtype=float)
+                # Evaluate the initial point once
+                if x0_arr.size == int(self.dac_size):
                     y0, diag0 = self.optimizer.hardware_objective(x0_arr)
                     self.optimizer.observe(x0_arr, y0)
                     # Enrich initial diagnostics to include exploration param and GP uncertainty
