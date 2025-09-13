@@ -20,78 +20,12 @@ OCCS provides an interactive web application and a Python service layer to contr
   - WebSocket: stream progress, waveform snapshots, and status
 - `OCCS/webui`: single-page app served by the backend when built
 
-## Quick Start
+## Quick Start (Docker, recommended)
 
-### 1) Python dependencies
-
-Use Conda/Mamba (recommended):
+Use prebuilt image from GitHub Releases only:
 
 ```bash
-mamba env create -f environment.yml  # or: conda env create -f environment.yml
-mamba activate ZJU-OCCS
-
-# For the web service (option A)
-pip install "OCCS[web]"  # installs fastapi, uvicorn, python-multipart
-# or (option B)
-pip install fastapi uvicorn python-multipart
-```
-
-Or with plain pip (Python >= 3.10):
-
-```bash
-pip install -e .
-pip install numpy scipy scikit-learn scikit-optimize matplotlib
-pip install "OCCS[web]"  # or: fastapi uvicorn python-multipart
-```
-
-### 2) Start the backend
-
-```bash
-occs-web --host 127.0.0.1 --port 8000
-# Alternatively: python -m OCCS.service.app
-```
-
-The API will be available under `http://127.0.0.1:8000/api`.
-
-### 3) Run the Web UI (dev or production)
-
-Dev (hot reload via Vite proxy):
-
-```bash
-cd OCCS/webui
-npm install  # or: pnpm install / yarn
-npm run dev
-# Open http://127.0.0.1:5173 (proxy to backend /api, including WS)
-```
-
-Production build (served by FastAPI):
-
-```bash
-cd OCCS/webui
-npm run build
-# Restart the backend; open http://127.0.0.1:8000/
-```
-
-### 4) Docker
-
-Build locally:
-
-```bash
-docker build -t occs-web:local .
-docker run --rm -p 8000:8000 occs-web:local
-# Open http://127.0.0.1:8000/
-```
-
-Enable real hardware backend (optional):
-
-```bash
-docker run --rm -e OCCS_REAL_AVAILABLE=1 -p 8000:8000 occs-web:local
-```
-
-Use prebuilt image from GitHub Releases (recommended for users):
-
-```bash
-# 1) Download occs-web.tar.gz from the Release assets
+# 1) Download occs-web.tar.gz from Release assets
 # 2) Load the image
 docker load -i occs-web.tar.gz
 
@@ -105,7 +39,7 @@ docker run --rm -e OCCS_REAL_AVAILABLE=1 \
   -p 8000:8000 <image:tag>
 ```
 
-### 5) Using the app
+### Using the app
 
 - Select backend (mock by default). Real hardware is disabled unless `OCCS_REAL_AVAILABLE=1`.
 - Configure wavelength grid and voltage bounds; optionally upload a target CSV.

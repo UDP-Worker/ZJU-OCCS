@@ -22,73 +22,9 @@ OCCS 面向实验工程师提供一个交互式网页界面与 Python 服务层�
 
 ## 快速开始
 
-### 1）安装依赖
+### 1）通过Docker安装
 
-使用 Conda/Mamba（推荐）：
-
-```bash
-mamba env create -f environment.yml  # 或：conda env create -f environment.yml
-mamba activate ZJU-OCCS
-
-# 启动 Web 服务所需（方案 A）
-pip install "OCCS[web]"  # 安装 fastapi、uvicorn、python-multipart
-# 或（方案 B）
-pip install fastapi uvicorn python-multipart
-```
-
-或使用 pip（Python >= 3.10）：
-
-```bash
-pip install -e .
-pip install numpy scipy scikit-learn scikit-optimize matplotlib
-pip install "OCCS[web]"  # 或：fastapi uvicorn python-multipart
-```
-
-### 2）启动后端
-
-```bash
-occs-web --host 127.0.0.1 --port 8000
-# 或：python -m OCCS.service.app
-```
-
-接口位于 `http://127.0.0.1:8000/api`。
-
-### 3）运行前端（开发或生产）
-
-开发（Vite 代理热更新）：
-
-```bash
-cd OCCS/webui
-npm install  # 或：pnpm install / yarn
-npm run dev
-# 打开 http://127.0.0.1:5173 （自动代理到后端 /api 与 WS）
-```
-
-生产构建（由后端托管）：
-
-```bash
-cd OCCS/webui
-npm run build
-# 重启后端；访问 http://127.0.0.1:8000/
-```
-
-### 4）Docker
-
-本地构建并运行：
-
-```bash
-docker build -t occs-web:local .
-docker run --rm -p 8000:8000 occs-web:local
-# 打开 http://127.0.0.1:8000/
-```
-
-启用真实硬件（可选）：
-
-```bash
-docker run --rm -e OCCS_REAL_AVAILABLE=1 -p 8000:8000 occs-web:local
-```
-
-使用 GitHub Releases 提供的预构建镜像：
+我们推荐使用 GitHub Releases 提供的预构建镜像：
 
 ```bash
 # 1）从 Release 附件中下载 occs-web.tar.gz
@@ -105,7 +41,7 @@ docker run --rm -e OCCS_REAL_AVAILABLE=1 \
   -p 8000:8000 <image:tag>
 ```
 
-### 5）使用流程
+### 2）使用流程
 
 - 选择后端（默认 mock）。真实硬件默认关闭，需将环境变量 `OCCS_REAL_AVAILABLE=1` 以启用。
 - 配置波长网格与电压边界；可上传理想目标 CSV。
