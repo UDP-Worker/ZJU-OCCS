@@ -33,7 +33,8 @@ export default function App() {
   const [targetPath, setTargetPath] = useState<string | null>(null)
   const [targetLabel, setTargetLabel] = useState<string | null>(null)
 
-  const [voltsText, setVoltsText] = useState('0,0,0')
+  // 手动电压输入（每通道一个输入框）
+  const [voltsArr, setVoltsArr] = useState<number[]>([0, 0, 0])
   const [nCalls, setNCalls] = useState(5)
   // 可选：优化的随机种子（留空表示不指定）
   const [randSeed, setRandSeed] = useState<string>('')
@@ -62,7 +63,7 @@ export default function App() {
       const next = Array.from({ length: dac }, (_, i) => prev[i] ?? { low: globalLow, high: globalHigh })
       return next
     })
-    setVoltsText(Array.from({ length: dac }).fill('0').join(','))
+    setVoltsArr(prev => Array.from({ length: dac }, (_, i) => (prev as number[])[i] ?? 0))
   }, [dac])
 
   // Fallback: if WS 未就绪但 session 存在，轮询状态与历史
@@ -150,8 +151,8 @@ export default function App() {
 
   async function onApplyVoltages() {
     if (!sessionId || status.running) return
-    const arr = voltsText.split(/[ ,]+/).filter(Boolean).map(parseFloat)
-    await postVoltages(sessionId, arr)
+    const arr = Array.from({ length: dac }, (_, i) => Number(voltsArr[i] ?? 0))
+    await postVoltages(sessionId, arr as number[])
     const wf = await getResponse(sessionId)
     setWave(wf)
     try { const vv = await getVoltages(sessionId); setCurrVolts(vv.volts) } catch {}
@@ -166,7 +167,7 @@ export default function App() {
       setWave(wf)
       const vv = await getVoltages(sessionId)
       setCurrVolts(vv.volts)
-      setVoltsText(bestVolts.map((v) => String(v)).join(','))
+      setVoltsArr(bestVolts.slice())
     } catch {}
   }
 
@@ -299,10 +300,31 @@ export default function App() {
 
       <fieldset>
         <legend>手动电压</legend>
-        <input style={{ minWidth: 240 }} type="text" value={voltsText} onChange={(e) => setVoltsText(e.target.value)} />
-        <button type="button" disabled={!sessionId || status.running} onClick={onApplyVoltages}>应用并刷新波形</button>
-        <button type="button" disabled={!sessionId || status.running || !bestVolts || bestVolts.length === 0} onClick={onApplyBestVoltages} style={{ marginLeft: 8 }}>应用最优电压</button>
-        <button type="button" disabled={!bestVolts || bestVolts.length === 0} onClick={onCopyBestVoltages} style={{ marginLeft: 8 }}>复制最优电压</button>
+        <div style={{ marginBottom: 6, fontSize: 12, color: '#98a2b3' }}>每通道一个输入，单位：V</div>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
+          {Array.from({ length: dac }).map((_, i) => (
+            <label key={i} style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+              <span style={{ fontSize: 12, opacity: 0.85 }}>ch{i}</span>
+              <input
+                type="number"
+                step="any"
+                value={Number.isFinite(voltsArr[i]) ? voltsArr[i] : 0}
+                onChange={(e) => {
+                  const v = e.target.value
+                  const num = v === '' ? 0 : parseFloat(v)
+                  setVoltsArr((arr) => arr.map((vv, j) => (j === i ? (Number.isNaN(num) ? 0 : num) : vv)))
+                }}
+                disabled={status.running || !sessionId}
+                style={{ width: 90 }}
+              />
+            </label>
+          ))}
+        </div>
+        <div style={{ marginTop: 8 }}>
+          <button type="button" disabled={!sessionId || status.running} onClick={onApplyVoltages}>应用并刷新波形</button>
+          <button type="button" disabled={!sessionId || status.running || !bestVolts || bestVolts.length === 0} onClick={onApplyBestVoltages} style={{ marginLeft: 8 }}>应用最优电压</button>
+          <button type="button" disabled={!bestVolts || bestVolts.length === 0} onClick={onCopyBestVoltages} style={{ marginLeft: 8 }}>复制最优电压</button>
+        </div>
         {status.running ? (
           <div style={{ marginTop: 6, fontSize: 12, color: '#d97706' }}>
             优化进行中，已暂时禁止手动下发电压。
