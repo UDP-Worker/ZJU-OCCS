@@ -30,15 +30,18 @@ Use Conda/Mamba (recommended):
 mamba env create -f environment.yml  # or: conda env create -f environment.yml
 mamba activate ZJU-OCCS
 
-# For the web service
-pip install fastapi uvicorn
+# For the web service (option A)
+pip install "OCCS[web]"  # installs fastapi, uvicorn, python-multipart
+# or (option B)
+pip install fastapi uvicorn python-multipart
 ```
 
 Or with plain pip (Python >= 3.10):
 
 ```bash
 pip install -e .
-pip install numpy scipy scikit-learn scikit-optimize matplotlib fastapi uvicorn
+pip install numpy scipy scikit-learn scikit-optimize matplotlib
+pip install "OCCS[web]"  # or: fastapi uvicorn python-multipart
 ```
 
 ### 2) Start the backend

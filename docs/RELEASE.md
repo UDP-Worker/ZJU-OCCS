@@ -34,7 +34,7 @@ Optional: smoke-test the wheel in a fresh venv:
 ```bash
 python -m venv .venv-test && . .venv-test/bin/activate
 pip install dist/OCCS-<ver>-py3-none-any.whl
-pip install fastapi uvicorn
+pip install "OCCS[web]"  # or: fastapi uvicorn python-multipart
 occs-web --host 127.0.0.1 --port 8000
 ```
 
@@ -77,4 +77,3 @@ docker push ghcr.io/<org>/occs-web:X.Y.Z
 - How to run (pip + occs-web; Docker run command)
 - Environment variable for real hardware: `OCCS_REAL_AVAILABLE=1`
 - API compatibility notes (if any)
-

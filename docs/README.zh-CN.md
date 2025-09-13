@@ -30,15 +30,18 @@ OCCS 面向实验工程师提供一个交互式网页界面与 Python 服务层�
 mamba env create -f environment.yml  # 或：conda env create -f environment.yml
 mamba activate ZJU-OCCS
 
-# 启动 Web 服务所需
-pip install fastapi uvicorn
+# 启动 Web 服务所需（方案 A）
+pip install "OCCS[web]"  # 安装 fastapi、uvicorn、python-multipart
+# 或（方案 B）
+pip install fastapi uvicorn python-multipart
 ```
 
 或使用 pip（Python >= 3.10）：
 
 ```bash
 pip install -e .
-pip install numpy scipy scikit-learn scikit-optimize matplotlib fastapi uvicorn
+pip install numpy scipy scikit-learn scikit-optimize matplotlib
+pip install "OCCS[web]"  # 或：fastapi uvicorn python-multipart
 ```
 
 ### 2）启动后端

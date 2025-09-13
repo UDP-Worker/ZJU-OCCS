@@ -26,3 +26,6 @@ Thumbs.db
 
 # Test outputs
 OCCS/data/optimization/**
+
+# Archive file
+*.tar

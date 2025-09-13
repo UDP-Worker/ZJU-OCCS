@@ -13,7 +13,7 @@ Quick start
 1) Create environment
 ```bash
 mamba env create -f environment.yml && mamba activate ZJU-OCCS   # or conda
-pip install fastapi uvicorn                                      # for the web service
+pip install "OCCS[web]"  # installs fastapi, uvicorn, python-multipart
 ```
 
 2) Start backend

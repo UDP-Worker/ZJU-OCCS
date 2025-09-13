@@ -16,6 +16,11 @@ dependencies:
   # ---- Plotting without Qt ----
   - matplotlib-base
 
+  # ---- Web service ----
+  - fastapi
+  - uvicorn
+  - python-multipart
+
   # ---- Dev / CI tools ----
   - pylint
   - pytest

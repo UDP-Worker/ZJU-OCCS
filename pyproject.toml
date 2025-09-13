@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "OCCS"
-version = "0.1.0"
+version = "0.1.1"
 description = "Optical Chip Control & Search (core + FastAPI service + Web UI)"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -19,6 +19,7 @@ dependencies = [
 web = [
     "fastapi>=0.110",
     "uvicorn>=0.23",
+    "python-multipart>=0.0.6",
 ]
 viz = [
     "matplotlib>=3.7",

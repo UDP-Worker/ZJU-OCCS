@@ -32,12 +32,8 @@ COPY --from=webui-builder /work/OCCS/webui/dist ./OCCS/webui/dist
 
 # Install package with web extras (installs fastapi + uvicorn)
 RUN python -m pip install --upgrade pip \
-    && pip install \
-        numpy scipy scikit-learn scikit-optimize \
-        fastapi uvicorn \
-    && pip install -e .
+    && pip install -e .[web]
 
 EXPOSE 8000
 
 ENTRYPOINT ["occs-web", "--host", "0.0.0.0", "--port", "8000"]
-
