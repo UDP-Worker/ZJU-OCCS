@@ -11,7 +11,6 @@ from dataclasses import dataclass, field
 from typing import Optional, Sequence, Tuple, List, Any, Dict, Iterable
 import threading
 import asyncio
-import time
 from pathlib import Path
 import numpy as np
 
@@ -34,6 +33,7 @@ class OptimizerSession:
     hardware: Any = field(init=False)
     hw_objective: HardwareObjective = field(init=False)
     optimizer: BayesianOptimizer = field(init=False)
+    optimizer_config: Dict[str, Any] = field(default_factory=dict, init=False)
     history: List[Dict[str, Any]] = field(default_factory=list, init=False)
     running: bool = field(default=False, init=False)
     _thread: Optional[threading.Thread] = field(default=None, init=False)
@@ -68,28 +68,44 @@ class OptimizerSession:
             M=None,
         )
 
-        # Construct optimizer with bounds from hardware if available
+        # Optimizer configuration mirrors the integration tests defaults
+        self.optimizer_config = dict(self.optimizer_kwargs)
+        self.optimizer_config.setdefault("acq_func", "gp_hedge")
+        self.optimizer_config.setdefault("random_state", 42)
+        self._build_optimizer()
+
+    def _resolve_dimensions(self) -> List[Tuple[float, float]]:
         dims = getattr(self.hardware, "skopt_dimensions", None)
-        # Fallback default bounds when none provided: (-1, 1) per channel
-        default_dims = [(-1.0, 1.0) for _ in range(int(self.dac_size))]
-        dimensions = dims if dims is not None else (self.bounds if self.bounds is not None else default_dims)
-        # Default acquisition: gp_hedge unless explicitly provided
-        kw = dict(self.optimizer_kwargs)
-        kw.setdefault("acq_func", "gp_hedge")
-        # Custom GP base estimator similar to tests
+        if dims is not None:
+            return [tuple(map(float, d)) for d in dims]
+        if self.bounds is not None:
+            return [tuple(map(float, b)) for b in self.bounds]
+        return [(-1.0, 1.0) for _ in range(int(self.dac_size))]
+
+    def _build_optimizer(self, overrides: Optional[Dict[str, Any]] = None) -> None:
+        dimensions = self._resolve_dimensions()
+        config = dict(self.optimizer_config)
+        if overrides:
+            for key, value in overrides.items():
+                if value is not None:
+                    config[key] = value
+        builder_kwargs = dict(config)
         try:
-            gp = make_gp_base_estimator(dimensions=dimensions, noise_floor=1e-6, n_restarts=10)
-            kw["base_estimator"] = gp
+            builder_kwargs["base_estimator"] = make_gp_base_estimator(
+                dimensions=dimensions,
+                noise_floor=1e-6,
+                n_restarts=10,
+            )
         except Exception:
-            # If estimator construction fails (shouldn't), fall back silently
             pass
-        # Keep the merged kwargs for potential rebuilds later
-        self.optimizer_kwargs = kw
         self.optimizer = BayesianOptimizer(
             self.hw_objective,
             dimensions=dimensions,
-            **kw,
+            **builder_kwargs,
         )
+        # Keep non-callable configuration for future rebuilds (avoid storing estimator instance)
+        config.pop("base_estimator", None)
+        self.optimizer_config = config
 
     # ---- Basic operations (Phase 1) ----
     def apply_manual(self, volts: Iterable[float]) -> None:
@@ -160,106 +176,63 @@ class OptimizerSession:
         if self.running:
             raise RuntimeError("Optimization already running for this session")
 
-        # Rebuild optimizer if user supplied acq_func or random_state
-        if acq_func is not None or random_state is not None:
-            kw = dict(self.optimizer_kwargs)
-            if acq_func is not None:
-                kw["acq_func"] = acq_func
-            if random_state is not None:
-                kw["random_state"] = int(random_state)
-            # 维度在重建时也要提供兜底，避免 None 导致 Optimizer 未初始化
-            dims = (
-                getattr(self.hardware, "skopt_dimensions", None)
-                or self.bounds
-                or [(-1.0, 1.0) for _ in range(int(self.dac_size))]
-            )
-            # Ensure base_estimator remains our custom GP if available
-            if "base_estimator" not in kw:
-                try:
-                    kw["base_estimator"] = make_gp_base_estimator(dimensions=dims, noise_floor=1e-6, n_restarts=10)
-                except Exception:
-                    pass
-            self.optimizer = BayesianOptimizer(self.hw_objective, dimensions=dims, **kw)
-            self.optimizer_kwargs = kw
+        overrides: Dict[str, Any] = {}
+        if acq_func is not None:
+            overrides["acq_func"] = acq_func
+        if random_state is not None:
+            overrides["random_state"] = int(random_state)
+        self._build_optimizer(overrides if overrides else None)
 
+        # Reset session history to mirror the integration test environment
+        self.history.clear()
+        self.best_loss = None
+        self.best_x = None
         self._stop_evt.clear()
         self.running = True
 
+        # Pre-emit status so subscribers know a run has started
+        self._emit({
+            "type": "status",
+            "running": True,
+            "iter": 0,
+            "best_loss": None,
+        })
+
         def _run_loop() -> None:
             try:
-                # Initial status event
-                self._emit({
-                    "type": "status",
-                    "running": True,
-                    "iter": len(self.history),
-                    "best_loss": (
-                        float(np.min([h.get("loss", np.inf) for h in self.history]))
-                        if self.history else None
-                    ),
-                })
-
-                local_best = float("inf") if self.best_loss is None else float(self.best_loss)
-                # Default x0 to origin if not provided (explicit initial evaluation)
                 if x0 is None:
                     x0_arr = np.zeros(int(self.dac_size), dtype=float)
                 else:
-                    x0_arr = np.asarray(list(x0), dtype=float)
-                # Evaluate the initial point once
-                if x0_arr.size == int(self.dac_size):
-                    y0, diag0 = self.optimizer.hardware_objective(x0_arr)
-                    self.optimizer.observe(x0_arr, y0)
-                    # Enrich initial diagnostics to include exploration param and GP uncertainty
-                    try:
-                        max_std0, max_var0 = self.optimizer._compute_gp_max_uncertainty(n_samples=1024, seed=12345)  # type: ignore[attr-defined]
-                    except Exception:
-                        max_std0, max_var0 = float("nan"), float("nan")
-                    diag0["gp_max_std"] = max_std0
-                    diag0["gp_max_var"] = max_var0
-                    try:
-                        pname = self.optimizer._choose_param_name()  # type: ignore[attr-defined]
-                        ak = self.optimizer._get_acq_kwargs()  # type: ignore[attr-defined]
-                        pval = float(ak.get(pname, self.optimizer._default_param_value(pname)))  # type: ignore[attr-defined]
-                        diag0[pname] = pval
-                    except Exception:
-                        pass
-                    item0 = {"x": x0_arr, "loss": float(y0), "diag": diag0}
-                    self.history.append(item0)
-                    if y0 < local_best:
-                        local_best = float(y0)
-                        self.best_loss = local_best
-                        self.best_x = x0_arr
-                    lam = np.asarray(diag0.get("lambda_ref", self.wavelength), dtype=float)
-                    s_ref = np.asarray(diag0.get("s_ref", []), dtype=float)
-                    t_ref = np.asarray(diag0.get("target_norm", []), dtype=float)
-                    self._emit({
-                        "type": "waveform",
-                        "lambda": lam.tolist(),
-                        "signal": s_ref.tolist() if s_ref.size else [],
-                        "target": t_ref.tolist() if t_ref.size else [],
-                    })
-                    self._emit({
-                        "type": "progress",
-                        "iter": len(self.history),
-                        "loss": float(y0),
-                        "running_min": local_best,
-                        "xi": float(diag0.get("xi", np.nan)) if "xi" in diag0 else None,
-                        "kappa": float(diag0.get("kappa", np.nan)) if "kappa" in diag0 else None,
-                        "gp_max_std": float(diag0.get("gp_max_std", np.nan)) if "gp_max_std" in diag0 else None,
-                        "x": list(map(float, np.asarray(diag0.get("volts", x0_arr), dtype=float))),
-                        "best_x": list(map(float, np.asarray(self.best_x))) if self.best_x is not None else None,
-                    })
+                    x0_arr = np.asarray(list(x0), dtype=float).ravel()
+                if x0_arr.size != int(self.dac_size):
+                    raise ValueError(f"Expected {self.dac_size} initial voltage values, got {x0_arr.size}")
 
-                # Main loop
-                for _ in range(int(n_calls)):
-                    if self._stop_evt.is_set():
-                        break
-                    loss, diag = self.optimizer.step()
-                    x_vec = np.asarray(diag.get("volts", self.hardware.read_voltage()), dtype=float)
-                    self.history.append({"x": x_vec, "loss": float(loss), "diag": diag})
-                    if float(loss) < local_best:
-                        local_best = float(loss)
-                        self.best_loss = local_best
-                        self.best_x = x_vec
+                local_best = float("inf")
+
+                def _handle_step(info: Dict[str, Any]) -> bool:
+                    nonlocal local_best
+
+                    diag = info.get("diag", {})
+                    x_vec = np.asarray(info.get("x", []), dtype=float).ravel()
+                    if x_vec.size != int(self.dac_size):
+                        x_vec = np.asarray(diag.get("volts", x_vec), dtype=float).ravel()
+                    loss_val = float(info.get("loss", float("inf")))
+                    self.history.append({"x": x_vec, "loss": loss_val, "diag": diag})
+
+                    best_loss_payload = info.get("best_loss")
+                    if best_loss_payload is not None and np.isfinite(best_loss_payload):
+                        local_best = float(best_loss_payload)
+                        if self.best_loss is None or local_best < float(self.best_loss):
+                            self.best_loss = local_best
+                    else:
+                        local_best = min(local_best, loss_val)
+                        if not np.isfinite(local_best):
+                            local_best = float(loss_val)
+
+                    best_x_payload = info.get("best_x")
+                    if best_x_payload is not None:
+                        self.best_x = np.asarray(best_x_payload, dtype=float)
+
                     lam = np.asarray(diag.get("lambda_ref", self.wavelength), dtype=float)
                     s_ref = np.asarray(diag.get("s_ref", []), dtype=float)
                     t_ref = np.asarray(diag.get("target_norm", []), dtype=float)
@@ -269,25 +242,45 @@ class OptimizerSession:
                         "signal": s_ref.tolist() if s_ref.size else [],
                         "target": t_ref.tolist() if t_ref.size else [],
                     })
-                    self._emit({
+
+                    progress_payload = {
                         "type": "progress",
                         "iter": len(self.history),
-                        "loss": float(loss),
-                        "running_min": local_best,
+                        "loss": float(loss_val),
+                        "running_min": local_best if np.isfinite(local_best) else None,
                         "xi": float(diag.get("xi", np.nan)) if "xi" in diag else None,
                         "kappa": float(diag.get("kappa", np.nan)) if "kappa" in diag else None,
                         "gp_max_std": float(diag.get("gp_max_std", np.nan)) if "gp_max_std" in diag else None,
-                        "x": list(map(float, x_vec)),
+                        "x": list(map(float, x_vec)) if x_vec.size else [],
                         "best_x": list(map(float, np.asarray(self.best_x))) if self.best_x is not None else None,
-                    })
+                    }
+                    self._emit(progress_payload)
+                    return not self._stop_evt.is_set()
 
-                self._emit({
+                result = self.optimizer.run(
+                    n_calls=int(n_calls),
+                    x0=x0_arr,
+                    callback=_handle_step,
+                )
+
+                res_best_loss = result.get("best_loss")
+                if res_best_loss is not None and np.isfinite(res_best_loss):
+                    best_loss_val = float(res_best_loss)
+                    if self.best_loss is None or best_loss_val < float(self.best_loss):
+                        self.best_loss = best_loss_val
+                res_best_x = result.get("best_x")
+                if res_best_x is not None:
+                    self.best_x = np.asarray(res_best_x, dtype=float)
+
+                final_status = {
                     "type": "status",
                     "running": False,
                     "iter": len(self.history),
                     "best_loss": (self.best_loss if self.best_loss is not None else None),
-                    "x": list(map(float, np.asarray(self.best_x))) if self.best_x is not None else None,
-                })
+                }
+                if self.best_x is not None:
+                    final_status["x"] = list(map(float, np.asarray(self.best_x)))
+                self._emit(final_status)
                 self._emit({"type": "done", "best_loss": (self.best_loss if self.best_loss is not None else None)})
             except Exception as e:
                 self._emit({"type": "error", "message": str(e)})

@@ -1,7 +1,7 @@
 """Bayesian optimization wrapper around scikit-optimize for OCCS hardware."""
 
 import logging
-from typing import Optional, Sequence, Tuple, Any, Dict, List
+from typing import Optional, Sequence, Tuple, Any, Dict, List, Callable
 
 import numpy as np
 from skopt import Optimizer
@@ -290,32 +290,58 @@ class BayesianOptimizer:
             self,
             n_calls: int,
             x0: Optional[Sequence[float]] = None,
+            callback: Optional[Callable[[Dict[str, Any]], bool]] = None,
     ) -> Dict[str, Any]:
         """
         Run ``n_calls`` evaluations. If ``x0`` is provided, evaluate it first.
 
         Returns a dict with keys: best_x, best_loss, history (list of steps).
         Each history item contains keys: x, loss, diag.
+        When ``callback`` is provided it is invoked after each observation with
+        a payload describing the step. Returning ``False`` from the callback
+        stops the run early while keeping accumulated history.
         """
+
+        class _StopRun(Exception):
+            """Internal control-flow exception to abort the optimisation loop."""
+
         history: List[Dict[str, Any]] = []
         X_hist: List[List[float]] = []
         y_hist: List[float] = []
 
-        # ---- Helper to record into history lists ----
-        def record(x: np.ndarray, loss: float, diag: Dict[str, Any]):
-            history.append({"x": np.asarray(x, dtype=float), "loss": float(loss), "diag": diag})
-            X_hist.append(list(map(float, np.asarray(x, dtype=float))))
+        def record(x: np.ndarray, loss: float, diag: Dict[str, Any]) -> np.ndarray:
+            arr = np.asarray(x, dtype=float)
+            history.append({"x": arr, "loss": float(loss), "diag": diag})
+            X_hist.append(list(map(float, arr)))
             y_hist.append(float(loss))
+            return arr
 
         # ---- Initialise adaptive controller state ----
-        param_name = self._choose_param_name()         # 'xi' or 'kappa'
+        param_name = self._choose_param_name()  # 'xi' or 'kappa'
         acq_kwargs_now = self._get_acq_kwargs()
         param_value = float(acq_kwargs_now.get(param_name, self._default_param_value(param_name)))
         no_improve = 0
         best_loss = float("inf")
-        # local function: compute base exploration schedule at iteration t (1-based)
+        best_x_arr: Optional[np.ndarray] = None
+
         def xi_base(t: int) -> float:
             return max(self._XI_MIN, self._C_INIT / (t ** 0.5))
+
+        def emit_callback(is_initial: bool) -> None:
+            if callback is None:
+                return
+            step_info = history[-1]
+            payload = {
+                "iteration": len(history),
+                "is_initial": bool(is_initial),
+                "x": step_info["x"],
+                "loss": step_info["loss"],
+                "diag": step_info["diag"],
+                "best_loss": best_loss if np.isfinite(best_loss) else float("inf"),
+                "best_x": None if best_x_arr is None else np.asarray(best_x_arr, dtype=float),
+            }
+            if callback(payload) is False:
+                raise _StopRun()
 
         # ---- Optional x0 seeding ----
         t_seen = 0  # number of *observed* points (for schedule)
@@ -324,12 +350,12 @@ class BayesianOptimizer:
             loss0, diag0 = self.hardware_objective(x0)
             self.observe(x0, loss0)
             t_seen += 1
-            best_loss = min(best_loss, float(loss0))
-            # Compute initial GP uncertainty after seeding with x0
+            if float(loss0) < best_loss:
+                best_loss = float(loss0)
+                best_x_arr = np.asarray(x0, dtype=float)
             max_std0, max_var0 = self._compute_gp_max_uncertainty(n_samples=1024, seed=12345)
             diag0["gp_max_std"] = max_std0
             diag0["gp_max_var"] = max_var0
-            # Track exploration parameter into diagnostics for logging/visualization
             if param_name == "xi":
                 diag0["xi"] = float(param_value)
             elif param_name == "kappa":
@@ -345,84 +371,105 @@ class BayesianOptimizer:
                     f"| GP max std={max_std0:.6g} (var={max_var0:.6g})"
                 )
             record(x0, loss0, diag0)
-
-        # ---- Main loop ----
-        for it in range(1, int(n_calls) + 1):
-            x = self.suggest()
-            loss, diag = self.hardware_objective(x)
-            self.observe(x, loss)
-            t_seen += 1
-
-            # Update diagnostics
-            max_std, max_var = self._compute_gp_max_uncertainty(
-                n_samples=1024, seed=12345 + it
-            )
-            diag["gp_max_std"] = max_std
-            diag["gp_max_var"] = max_var
-            # Also track current exploration parameter for this iteration
-            if param_name == "xi":
-                diag["xi"] = float(param_value)
-            elif param_name == "kappa":
-                diag["kappa"] = float(param_value)
-
-            # --------- Adaptive exploration update (soft rebuild if changed) ----------
-            improved = (float(best_loss) - float(loss)) > max(0.01 * abs(float(best_loss)), 1e-12)
-            if improved:
-                best_loss = float(loss)
-                no_improve = 0
-                new_val = max(self._XI_MIN, param_value * self._COOL_GAMMA)
-            else:
-                no_improve += 1
-                base = xi_base(t_seen)
-                if no_improve >= self._STALL_K:
-                    new_val = min(self._BOOST_BETA * base, self._XI_MAX)
-                else:
-                    new_val = base
-
-            # Rebuild only if the controlling parameter actually changes
-            if abs(new_val - param_value) > self._DELTA_TOL:
-                try:
-                    ak = self._get_acq_kwargs()
-                    ak[param_name] = float(new_val)
-                    # If gp_hedge，提供两者也无害（LCB 分支只用 kappa；EI/PI 只用 xi）
-                    if self._acq_func == "gp_hedge":
-                        # keep both keys present for hedge mixtures
-                        ak.setdefault("xi", float(new_val))
-                        ak.setdefault("kappa", 1.96)  # keep a gentle default for UCB arm
-                    # Build new optimizer and backfill history
-                    new_opt = self._build_optimizer_with(ak)
-                    if X_hist:
-                        new_opt.tell(X_hist, y_hist)
-                    self._opt = new_opt
-                    try:
-                        logger.info(
-                            "Rebuild | iter=%d | %s: %.4g → %.4g | best=%.6g | no_improve=%d",
-                            it, param_name, param_value, new_val, best_loss, no_improve
-                        )
-                    except Exception:
-                        print(
-                            f"Rebuild | iter={it} | {param_name}: {param_value:.4g} → {new_val:.4g} "
-                            f"| best={best_loss:.6g} | no_improve={no_improve}"
-                        )
-                    param_value = float(new_val)
-                except Exception as e:
-                    logger.warning("Adaptive %s rebuild skipped due to error: %r", param_name, e)
-
             try:
-                logger.info(
-                    "Iter %d | loss=%.6g | %s=%.4g | GP max std=%.6g (var=%.6g)",
-                    it, float(loss), param_name, param_value, max_std, max_var,
-                )
-            except Exception:
-                print(
-                    f"Iter {it} | loss={float(loss):.6g} | {param_name}={param_value:.4g} "
-                    f"| GP max std={max_std:.6g} (var={max_var:.6g})"
-                )
+                emit_callback(is_initial=True)
+            except _StopRun:
+                self._param_value_cache = float(param_value)
+                self._t_seen = int(t_seen)
+                self._best_loss_seen = float(best_loss)
+                self._no_improve = int(no_improve)
+                return {
+                    "best_x": history[-1]["x"],
+                    "best_loss": history[-1]["loss"],
+                    "history": history,
+                }
 
-            # Record after logging
-            record(x, loss, diag)
+        # ---- Main optimisation loop ----
+        try:
+            for it in range(1, int(n_calls) + 1):
+                x = self.suggest()
+                loss, diag = self.hardware_objective(x)
+                self.observe(x, loss)
+                t_seen += 1
 
-        # Determine the best from our history
+                max_std, max_var = self._compute_gp_max_uncertainty(
+                    n_samples=1024, seed=12345 + it
+                )
+                diag["gp_max_std"] = max_std
+                diag["gp_max_var"] = max_var
+                if param_name == "xi":
+                    diag["xi"] = float(param_value)
+                elif param_name == "kappa":
+                    diag["kappa"] = float(param_value)
+
+                improved = (float(best_loss) - float(loss)) > max(0.01 * abs(float(best_loss)), 1e-12)
+                if improved:
+                    best_loss = float(loss)
+                    best_x_arr = np.asarray(x, dtype=float)
+                    no_improve = 0
+                    new_val = max(self._XI_MIN, param_value * self._COOL_GAMMA)
+                else:
+                    no_improve += 1
+                    base = xi_base(t_seen)
+                    if no_improve >= self._STALL_K:
+                        new_val = min(self._BOOST_BETA * base, self._XI_MAX)
+                    else:
+                        new_val = base
+
+                if abs(new_val - param_value) > self._DELTA_TOL:
+                    try:
+                        ak = self._get_acq_kwargs()
+                        ak[param_name] = float(new_val)
+                        if self._acq_func == "gp_hedge":
+                            ak.setdefault("xi", float(new_val))
+                            ak.setdefault("kappa", 1.96)
+                        new_opt = self._build_optimizer_with(ak)
+                        if X_hist:
+                            new_opt.tell(X_hist, y_hist)
+                        self._opt = new_opt
+                        old_val = float(param_value)
+                        param_value = float(new_val)
+                        try:
+                            logger.info(
+                                "Rebuild | iter=%d | %s: %.4g → %.4g | best=%.6g | no_improve=%d",
+                                it, param_name, old_val, param_value, best_loss, no_improve,
+                            )
+                        except Exception:
+                            print(
+                                f"Rebuild | iter={it} | {param_name}: {old_val:.4g} → {param_value:.4g} "
+                                f"| best={best_loss:.6g} | no_improve={no_improve}"
+                            )
+                    except Exception as e:
+                        logger.warning("Adaptive %s rebuild skipped due to error: %r", param_name, e)
+
+                try:
+                    logger.info(
+                        "Iter %d | loss=%.6g | %s=%.4g | GP max std=%.6g (var=%.6g)",
+                        it, float(loss), param_name, param_value, max_std, max_var,
+                    )
+                except Exception:
+                    print(
+                        f"Iter {it} | loss={float(loss):.6g} | {param_name}={param_value:.4g} "
+                        f"| GP max std={max_std:.6g} (var={max_var:.6g})"
+                    )
+
+                record(x, loss, diag)
+                emit_callback(is_initial=False)
+        except _StopRun:
+            pass
+
+        if history and best_x_arr is None:
+            # If no improvement logic triggered (e.g. single point), fall back to argmin history
+            best_idx_local = int(np.argmin([h["loss"] for h in history]))
+            best_loss = float(history[best_idx_local]["loss"])
+            best_x_arr = np.asarray(history[best_idx_local]["x"], dtype=float)
+
+        # Keep step-oriented state in sync for subsequent incremental usage
+        self._param_value_cache = float(param_value)
+        self._t_seen = int(t_seen)
+        self._best_loss_seen = float(best_loss)
+        self._no_improve = int(no_improve)
+
         best_idx = int(np.argmin([h["loss"] for h in history])) if history else -1
         best = history[best_idx] if history else {"x": None, "loss": np.inf}
         return {
