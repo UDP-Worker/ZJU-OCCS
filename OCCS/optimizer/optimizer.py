@@ -231,6 +231,8 @@ class BayesianOptimizer:
                 # If rebuild fails, keep current optimizer and cache unchanged
                 pass
 
+        diag["no_improve"] = int(self._no_improve)
+
         return loss, diag
 
     def _sample_points(self, n: int, rng: np.random.Generator) -> np.ndarray:
@@ -327,7 +329,7 @@ class BayesianOptimizer:
         def xi_base(t: int) -> float:
             return max(self._XI_MIN, self._C_INIT / (t ** 0.5))
 
-        def emit_callback(is_initial: bool) -> None:
+        def emit_callback(is_initial: bool, no_improve_val: int) -> None:
             if callback is None:
                 return
             step_info = history[-1]
@@ -339,6 +341,7 @@ class BayesianOptimizer:
                 "diag": step_info["diag"],
                 "best_loss": best_loss if np.isfinite(best_loss) else float("inf"),
                 "best_x": None if best_x_arr is None else np.asarray(best_x_arr, dtype=float),
+                "no_improve": int(no_improve_val),
             }
             if callback(payload) is False:
                 raise _StopRun()
@@ -360,6 +363,7 @@ class BayesianOptimizer:
                 diag0["xi"] = float(param_value)
             elif param_name == "kappa":
                 diag0["kappa"] = float(param_value)
+            diag0["no_improve"] = int(no_improve)
             try:
                 logger.info(
                     "Init | loss=%.6g | %s=%.4g | GP max std=%.6g (var=%.6g)",
@@ -372,7 +376,7 @@ class BayesianOptimizer:
                 )
             record(x0, loss0, diag0)
             try:
-                emit_callback(is_initial=True)
+                emit_callback(is_initial=True, no_improve_val=no_improve)
             except _StopRun:
                 self._param_value_cache = float(param_value)
                 self._t_seen = int(t_seen)
@@ -452,9 +456,9 @@ class BayesianOptimizer:
                         f"Iter {it} | loss={float(loss):.6g} | {param_name}={param_value:.4g} "
                         f"| GP max std={max_std:.6g} (var={max_var:.6g})"
                     )
-
+                diag["no_improve"] = int(no_improve)
                 record(x, loss, diag)
-                emit_callback(is_initial=False)
+                emit_callback(is_initial=False, no_improve_val=no_improve)
         except _StopRun:
             pass
 

@@ -6,6 +6,7 @@ import { OptimizerControls } from './components/OptimizerControls'
 import { StatusBar } from './components/StatusBar'
 // Diagnostics chart for xi
 import { XiChart } from './components/XiChart'
+import { NoImproveChart } from './components/NoImproveChart'
 import { getBackends, createSession, getResponse, postVoltages, startOptimize, stopOptimize, getSessionStatus, getHistory, getVoltages, uploadTarget } from './api/client'
 import { connectSessionStream, type StreamMessage } from './api/ws'
 
@@ -30,6 +31,8 @@ export default function App() {
   const [bestVolts, setBestVolts] = useState<number[] | null>(null)
   const [xi, setXi] = useState<number | null>(null)
   const [xis, setXis] = useState<number[]>([])
+  const [noImprove, setNoImprove] = useState<number | null>(null)
+  const [noImproveSeries, setNoImproveSeries] = useState<number[]>([])
   const [targetPath, setTargetPath] = useState<string | null>(null)
   const [targetLabel, setTargetLabel] = useState<string | null>(null)
 
@@ -137,6 +140,13 @@ export default function App() {
           .map((h: any) => (h && h.diag ? h.diag.xi : undefined))
           .filter((v: any) => typeof v === 'number' && isFinite(v))
         if (xisHist.length) setXis(xisHist)
+        const niHist = (hist.history || [])
+          .map((h: any) => (h && h.diag ? h.diag.no_improve : undefined))
+          .filter((v: any) => typeof v === 'number' && isFinite(v))
+        if (niHist.length) {
+          setNoImproveSeries(niHist as number[])
+          setNoImprove(niHist[niHist.length - 1] as number)
+        }
         // 最新 x 作为当前电压
         const last = (hist.history || []).slice(-1)[0]
         if (last && last.x && Array.isArray(last.x)) setCurrVolts(last.x as number[])
@@ -163,6 +173,11 @@ export default function App() {
     setSessionId(r.session_id)
     // reset manual voltages to zeros matching dac size
     setVoltsArr(Array.from({ length: dac }).map(() => 0))
+    setLosses([])
+    setXis([])
+    setXi(null)
+    setNoImproveSeries([])
+    setNoImprove(null)
     // connect WS
     const ws = connectSessionStream(r.session_id)
     wsRef.current = ws
@@ -182,6 +197,11 @@ export default function App() {
           const v = (msg as any).xi as number
           setXi(v)
           setXis((arr) => [...arr, v])
+        }
+        if (typeof (msg as any).no_improve === 'number') {
+          const nv = (msg as any).no_improve as number
+          setNoImprove(nv)
+          setNoImproveSeries((arr) => [...arr, nv])
         }
       } else if (msg.type === 'waveform') {
         setWave({ lambda: msg.lambda, signal: msg.signal, target: msg.target })
@@ -247,6 +267,8 @@ export default function App() {
     if (!sessionId) return
     setLosses([])
     setXis([])
+    setNoImproveSeries([])
+    setNoImprove(null)
     const payload: any = { n_calls: nCalls }
     const s = String(randSeed ?? '').trim()
     if (s !== '' && !Number.isNaN(Number(s))) {
@@ -424,6 +446,19 @@ export default function App() {
           <div style={{ minWidth: 160 }}>
             <div className="muted">当前 ξ</div>
             <div style={{ fontSize: 18 }}>{xi != null && isFinite(xi) ? xi.toFixed(4) : '—'}</div>
+          </div>
+        </div>
+      </div>
+
+      <div className="card" style={{ marginTop: 16 }}>
+        <div className="card-title">无改进计数</div>
+        <div className="row" style={{ alignItems: 'flex-start' }}>
+          <div style={{ flex: 1 }}>
+            <NoImproveChart values={noImproveSeries} themeKey={theme} />
+          </div>
+          <div style={{ minWidth: 160 }}>
+            <div className="muted">当前 no_improve</div>
+            <div style={{ fontSize: 18 }}>{noImprove != null && isFinite(noImprove) ? noImprove.toFixed(0) : '—'}</div>
           </div>
         </div>
       </div>

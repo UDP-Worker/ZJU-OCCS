@@ -254,6 +254,11 @@ class OptimizerSession:
                         "x": list(map(float, x_vec)) if x_vec.size else [],
                         "best_x": list(map(float, np.asarray(self.best_x))) if self.best_x is not None else None,
                     }
+                    ni_val = diag.get("no_improve") if isinstance(diag, dict) else None
+                    if ni_val is None:
+                        ni_val = info.get("no_improve")
+                    if isinstance(ni_val, (int, float)) and np.isfinite(ni_val):
+                        progress_payload["no_improve"] = int(ni_val)
                     self._emit(progress_payload)
                     return not self._stop_evt.is_set()
 
