@@ -41,4 +41,10 @@ include-package-data = true
 OCCS = [
     "webui/dist/**",
     "data/*.csv",
+    "connector/*.json",
+]
+
+[tool.pytest.ini_options]
+markers = [
+    "hardware: tests that require access to laboratory instruments",
 ]

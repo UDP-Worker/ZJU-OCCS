@@ -1,0 +1,24 @@
+{
+  "real_hardware": {
+    "enabled": true,
+    "dac": {
+      "port": "COM5",
+      "channels": [31, 30, 29, 28, 27, 26],
+      "baudrate": 115200,
+      "timeout": 1.0,
+      "write_timeout": 1.0,
+      "query_delay": 0.05,
+      "read_termination": "\n",
+      "write_termination": "\n"
+    },
+    "osa": {
+      "resource": "GPIB0::1::INSTR",
+      "channel": "a",
+      "sensitivity": "high2",
+      "speed": "2x",
+      "timeout": 150.0,
+      "chunk_size": 540027
+    },
+    "bounds": [0.0, 2.5]
+  }
+}

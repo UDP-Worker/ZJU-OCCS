@@ -11,10 +11,13 @@ Notes
 from __future__ import annotations
 
 from typing import Iterable, Optional, Sequence, Tuple, List, Dict, Any
-import os
 import numpy as np
 
 from OCCS.connector import MockHardware, RealHardware  # type: ignore
+from OCCS.connector.hardware_config import (
+    is_real_hardware_enabled,
+    load_real_hardware_config,
+)
 
 
 def _broadcast_bounds(
@@ -56,9 +59,9 @@ def list_backends() -> List[Dict[str, Any]]:
     """List available backend types for selection in the UI.
 
     Returns a list of dicts with `name` and `available` flags. Real hardware
-    availability can be toggled via environment variable `OCCS_REAL_AVAILABLE=1`.
+    availability is controlled via ``connector/hardware_config.json``.
     """
-    real_available = os.environ.get("OCCS_REAL_AVAILABLE", "0") in {"1", "true", "True"}
+    real_available = is_real_hardware_enabled()
     return [
         {"name": "mock", "available": True},
         {"name": "real", "available": bool(real_available)},
@@ -73,6 +76,7 @@ def make_hardware(
     bounds: Optional[Sequence[Tuple[float, float]] | Tuple[float, float]] = None,
     noise_std: Optional[Iterable[float] | float] = None,
     rng: Optional[np.random.Generator] = None,
+    config: Optional[Dict[str, Any]] = None,
 ) -> Any:
     """Construct a hardware instance by backend name.
 
@@ -84,6 +88,7 @@ def make_hardware(
     bounds: Optional per-channel bounds. Single pair is broadcast to all.
     noise_std: Optional noise std (mock only).
     rng: Optional RNG (mock only).
+    config: Optional configuration override for the real backend.
     """
     name = str(backend).strip().lower()
     if name == "mock":
@@ -95,17 +100,16 @@ def make_hardware(
             voltage_bounds=_broadcast_bounds(bounds, int(dac_size)),
         )
     if name == "real":
-        real_available = os.environ.get("OCCS_REAL_AVAILABLE", "0") in {"1", "true", "True"}
-        if not real_available:
+        real_config = config or load_real_hardware_config()
+        if not real_config.get("enabled"):
             raise NotImplementedError("Real hardware backend is disabled or not available")
-        # The RealHardware placeholder raises NotImplemented in its __init__ by design.
         return RealHardware(
             dac_size=int(dac_size),
             wavelength=wavelength,
             voltage_bounds=_broadcast_bounds(bounds, int(dac_size)),
+            config=real_config,
         )
     raise ValueError(f"Unknown backend: {backend!r}")
 
 
 __all__ = ["list_backends", "make_hardware"]
-

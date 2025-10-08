@@ -1,5 +1,7 @@
 import numpy as np
+import pytest
 
+from OCCS.connector.real_hardware import HardwareUnavailableError
 from OCCS.service.hardware import list_backends, make_hardware
 
 
@@ -26,10 +28,20 @@ def test_make_hardware_mock_basic_response_shape():
 
 def test_make_hardware_real_unavailable():
     lam = np.linspace(1.55e-6, 1.56e-6, 32)
-    try:
-        make_hardware("real", dac_size=1, wavelength=lam)
-    except NotImplementedError:
-        pass
-    else:
-        raise AssertionError("Expected NotImplementedError for real backend by default")
+    with pytest.raises(NotImplementedError):
+        make_hardware("real", dac_size=1, wavelength=lam, config={"enabled": False})
 
+
+def test_make_hardware_real_requires_configuration():
+    lam = np.linspace(1.55e-6, 1.56e-6, 8)
+    with pytest.raises(HardwareUnavailableError):
+        make_hardware(
+            "real",
+            dac_size=2,
+            wavelength=lam,
+            config={
+                "enabled": True,
+                "dac": {},
+                "osa": {},
+            },
+        )
