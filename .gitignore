@@ -1,0 +1,52 @@
+# --- Python ---
+__pycache__/
+*.py[cod]
+*.pyo
+*.so
+.venv/
+venv/
+env/
+.env
+.env.*
+*.egg-info/
+.eggs/
+build/
+dist/
+.mypy_cache/
+.pytest_cache/
+.tox/
+.nox/
+.coverage*
+htmlcov/
+.ruff_cache/
+.pylint.d/
+
+# --- Node / Vite (web UI) ---
+**/node_modules/
+**/dist/
+**/.vite/
+**/.cache/
+**/.parcel-cache/
+**/.tsbuildinfo
+**/coverage/
+
+# --- Logs ---
+*.log
+npm-debug.log*
+yarn-debug.log*
+pnpm-debug.log*
+
+# --- OS / Editors ---
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+
+# --- Project outputs ---
+# Generated optimization artifacts (plots & CSVs)
+OCCS/data/optimization/**
+
+# --- Archives ---
+*.tar.gz
+*.zip
+*.tar
