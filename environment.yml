@@ -7,6 +7,9 @@ dependencies:
   - python=3.10
   - pip
 
+  # ---- Front-end toolchain ----
+  - nodejs>=20
+
   # ---- Core scientific stack ----
   - numpy
   - scipy
@@ -26,6 +29,6 @@ dependencies:
   - pytest
 
 
-  # ---- Install your package in editable mode so "import OCCS" works in CI ----
+  # ---- Install OCCS (editable) with FastAPI extras for the web service ----
   - pip:
-      - -e .
+      - -e .[web]

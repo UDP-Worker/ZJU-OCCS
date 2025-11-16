@@ -16,6 +16,13 @@ Quick start (Docker, recommended)
 - Optional real hardware: add `-e OCCS_REAL_AVAILABLE=1`.
 - Optional persistence: add `-v $(pwd)/uploads:/tmp/occs_uploads` to keep uploaded target CSVs.
 
+Local development (macOS / Linux / Windows)
+- Python via Conda/Mamba: `mamba env create -f environment.yml` (or `conda env create`), then `conda activate ZJU-OCCS`.
+- Python via venv/uv: `python -m venv .venv && source .venv/bin/activate` (PowerShell: `.\.venv\Scripts\activate`), and `pip install -r requirements-dev.txt`. With uv: `uv venv && uv pip install -r requirements-dev.txt`.
+- Frontend: install Node.js 20+ (Conda env already provides it) and run `cd OCCS/webui && npm install`. Use `npm run dev` for live reload or `npm run build` to update `OCCS/webui/dist`.
+- Backend: start FastAPI via `occs-web --host 127.0.0.1 --port 8000` and point the Vite dev server at it (Vite proxies `/api` automatically).
+- Tests & lint: `pytest -q` and optionally `pylint OCCS tests` once the Python env is active.
+
 More docs (architecture, API, and workflows): see the language-specific READMEs above.
 
 License
