@@ -48,6 +48,14 @@ docker run --rm -e OCCS_REAL_AVAILABLE=1 \
 - 创建会话，手动下发电压并刷新波形。
 - 启动优化，实时查看 loss 与诊断；可随时下载历史 CSV。
 
+## 在另一台机器上进行前端开发
+
+1. 后端主机：按照仓库 README 中的 Python 环境步骤（Conda、venv、uv 均可）完成安装，并使用 `occs-web --host 0.0.0.0 --port 8000` 启动 FastAPI 服务，确保 8000 端口对局域网/VPN 可访问。
+2. 前端主机：克隆本仓库（或仅复制 `OCCS/webui` 目录），安装 Node.js 20+，进入 `OCCS/webui` 并执行 `npm install`。
+3. 修改 `OCCS/webui/vite.config.ts`，将开发代理的 `target` 地址从默认的 `http://127.0.0.1:8000` 改成实际后端主机（例如 `http://192.168.1.50:8000`），这样 `/api` 与 WebSocket 请求会正确转发到远端。
+4. 通过 `npm run dev -- --host 0.0.0.0 --port 5173` 启动 Vite 开发服务器，在浏览器访问 `http://<前端主机>:5173/` 即可连接远程后端进行调试。
+5. 需要后端直接托管新前端时，运行 `npm run build` 并将生成的 `OCCS/webui/dist` 拷贝回后端主机；也可以持续使用 Vite 开发服务器获得热更新体验。
+
 ## API 一览（REST）
 
 - `GET /api/backends` → 可用后端

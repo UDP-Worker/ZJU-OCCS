@@ -1,0 +1,5 @@
+# Developer requirements for pip/venv or uv environments
+# Includes the OCCS package with FastAPI + visualization extras
+-e .[web,viz]
+pytest
+pylint

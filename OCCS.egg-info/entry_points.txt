@@ -1,0 +1,2 @@
+[console_scripts]
+occs-web = OCCS.cli:web_main
