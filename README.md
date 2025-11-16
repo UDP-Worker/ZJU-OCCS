@@ -23,6 +23,13 @@ Local development (macOS / Linux / Windows)
 - Backend: start FastAPI via `occs-web --host 127.0.0.1 --port 8000` and point the Vite dev server at it (Vite proxies `/api` automatically).
 - Tests & lint: `pytest -q` and optionally `pylint OCCS tests` once the Python env is active.
 
+Front-end development on another machine
+1. Prepare a backend host (could be a lab server or teammate laptop) using the Python instructions above, then run `occs-web --host 0.0.0.0 --port 8000` so the REST + WebSocket endpoints are reachable on your LAN/VPN. Ensure port 8000 is allowed through its firewall.
+2. On the front-end machine: clone this repo (or copy the `OCCS/webui` directory), install Node.js 20 or newer, and run `cd OCCS/webui && npm install`.
+3. Point the Vite proxy to the remote backend by editing `OCCS/webui/vite.config.ts` and replacing the `target` URL (default `http://127.0.0.1:8000`) with the backend host, e.g. `http://192.168.1.50:8000`.
+4. Start the dev server with a publicly reachable host flag: `npm run dev -- --host 0.0.0.0 --port 5173`. Browse to `http://<frontend-host>:5173/`; the UI will proxy `/api` + WebSocket traffic to the remote backend.
+5. For production testing, run `npm run build` and copy `OCCS/webui/dist` back to the backend host so the FastAPI app can serve the updated assets.
+
 More docs (architecture, API, and workflows): see the language-specific READMEs above.
 
 License

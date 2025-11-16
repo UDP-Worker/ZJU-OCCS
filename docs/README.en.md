@@ -46,6 +46,14 @@ docker run --rm -e OCCS_REAL_AVAILABLE=1 \
 - Create a session, adjust voltages manually, and refresh waveforms.
 - Start optimization to stream loss and diagnostics; download history CSV anytime.
 
+## Front-end development on another machine
+
+1. Backend host: set up the Python environment (Conda, venv, or uv as described in the repo README) and launch the FastAPI service with `occs-web --host 0.0.0.0 --port 8000`. Keep port 8000 open so the remote UI can reach it.
+2. Front-end host: clone this repository (or copy the `OCCS/webui` folder) and install Node.js 20+. Run `cd OCCS/webui && npm install` to fetch dependencies.
+3. Edit `OCCS/webui/vite.config.ts` so the dev proxy `target` points to the backend machine instead of `127.0.0.1` (e.g., `http://192.168.1.50:8000`). This ensures REST + WebSocket traffic is forwarded correctly during development.
+4. Start the Vite server with `npm run dev -- --host 0.0.0.0 --port 5173`. Open `http://<frontend-host>:5173/` from your browser; the UI will talk to the remote backend through the proxy.
+5. When you need the backend to serve the updated UI, run `npm run build` and copy the generated `OCCS/webui/dist` directory back to the backend host (or keep using the dev server for live reloads).
+
 ## API Overview (REST)
 
 - `GET /api/backends` → available backends
