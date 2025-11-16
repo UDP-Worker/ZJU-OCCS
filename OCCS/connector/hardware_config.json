@@ -2,8 +2,11 @@
   "real_hardware": {
     "enabled": true,
     "dac": {
-      "port": "COM5",
-      "channels": [31, 30, 29, 28, 27, 26],
+      "port": "/dev/serial/by-id/usb-Prolific_Technology_Inc._USB-Serial_Controller_EGBAb144J07-if00-port0",
+      "channels": [
+        31,
+        30
+      ],
       "baudrate": 115200,
       "timeout": 1.0,
       "write_timeout": 1.0,
@@ -19,6 +22,6 @@
       "timeout": 150.0,
       "chunk_size": 540027
     },
-    "bounds": [0.0, 2.5]
+    "bounds": [[0.0, 2.5], [0.0, 2.5]]
   }
 }
