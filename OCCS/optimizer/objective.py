@@ -10,12 +10,13 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional, Dict, Any, Tuple
 
+import logging
 import numpy as np
+from scipy.fft import dct
 
 from OCCS.optimizer.utils import (
     load_two_row_csv,
     resample_to_ref,
-    normalize_shape,
     huber_loss,
     make_band_weights,
 )
@@ -45,6 +46,9 @@ class ObjectiveConfig:
     fit_gain_bias:
         If ``True``, after alignment, fit an affine transform ``alpha*s + beta``
         to match the target scale and offset before computing the loss.
+    energy_threshold:
+        Fraction of cumulative DCT energy to preserve when picking leading
+        coefficients for the loss (0, 1]. Higher keeps more coefficients.
     """
     delta_max_nm: float = 0.10
     delta_step_nm: Optional[float] = None
@@ -52,6 +56,16 @@ class ObjectiveConfig:
     huber_kappa: float = 0.8
     weights: Optional[np.ndarray] = None
     fit_gain_bias: bool = False
+    energy_threshold: float = 1.0
+
+logger = logging.getLogger(__name__)
+if not logger.handlers:
+    _handler = logging.StreamHandler()
+    _handler.setFormatter(
+        logging.Formatter("%(asctime)s [%(levelname)s] %(name)s: %(message)s")
+    )
+    logger.addHandler(_handler)
+logger.setLevel(logging.INFO)
 
 class CurveObjective:
     """Curve similarity objective compressed to a scalar value.
@@ -84,8 +98,16 @@ class CurveObjective:
             raise ValueError("lambda_ref and target_ref length mismatch.")
         self.config = config or ObjectiveConfig()
 
-        # 预先归一化理想曲线到形状尺度（对比时使用相同处理）
-        self._target_norm = normalize_shape(self.target_ref)
+        # 直接使用原始目标曲线做 DCT，保留平均值与幅度信息
+        self._target_norm = self.target_ref
+        self._target_dct = dct(self.target_ref, norm="ortho")
+
+        # 能量占比阈值校验并预计算目标所需的 DCT 维度
+        if not (0.0 < self.config.energy_threshold <= 1.0):
+            raise ValueError("energy_threshold must be in (0, 1].")
+        self._target_k, self._target_energy_covered = self._select_dct_components(
+            self._target_dct, self.config.energy_threshold
+        )
 
         # 参考网格间距用于默认对齐步长（转换到 nm 单位存储）
         if self.config.delta_step_nm is None:
@@ -106,7 +128,7 @@ class CurveObjective:
     def __call__(self,
                  lambda_raw: np.ndarray,
                  s_raw: np.ndarray) -> Tuple[float, Dict[str, Any]]:
-        """Evaluate the objective with simple MSE and return diagnostics.
+        """Evaluate the objective using DCT-based, energy-trimmed MSE.
 
         Parameters
         ----------
@@ -125,23 +147,92 @@ class CurveObjective:
         # 重采样到参考网格
         s_ref = resample_to_ref(lambda_raw, s_raw, self.lambda_ref)
 
-        # 使用简单的 MSE 作为曲线间的距离（不做对齐与归一化/加权）
-        err = s_ref - self.target_ref
-        # 避免上游偶发的 NaN 传播：使用 nanmean，并在极端情况下回退为 +inf
-        err2 = (err ** 2)
-        loss = float(np.nanmean(err2))
+        # 清理异常值，保持对齐零位
+        if not np.all(np.isfinite(s_ref)):
+            s_ref = np.where(np.isfinite(s_ref), s_ref, 0.0)
+
+        # 直接在原始幅值上做 DCT，保留平均值与幅度信息
+        s_dct = dct(s_ref, norm="ortho")
+
+        # 根据能量阈值选择系数数量，对目标与信号取更大的 k 以保持一致维度
+        sig_k, sig_energy_covered = self._select_dct_components(
+            s_dct, self.config.energy_threshold
+        )
+        k = max(self._target_k, sig_k)
+        k = max(1, min(k, s_dct.size, self._target_dct.size))
+
+        target_coef = self._target_dct[:k]
+        signal_coef = s_dct[:k]
+
+        err = signal_coef - target_coef
+        loss = float(np.mean(err ** 2))
         if not np.isfinite(loss):
             loss = float("inf")
 
         # 维持原有诊断信息接口（以便下游可视化或日志不受影响）
+        target_energy_covered = self._fractional_energy(self._target_dct, k)
+        signal_energy_covered = self._fractional_energy(s_dct, k)
+        tgt_norm = float(np.linalg.norm(target_coef))
+        sig_norm = float(np.linalg.norm(signal_coef))
         diag = {
             "delta_nm": 0.0,               # 简化后无平移，对齐量视为 0
             "lambda_ref": self.lambda_ref,
             "s_ref": s_ref,                # 重采样后的信号
             "s_aligned": s_ref,            # 无对齐，等同于 s_ref
-            "target_norm": self.target_ref # 此处直接返回目标曲线
+            "target_norm": self._target_norm, # 直接返回目标曲线
+            "dct_k": k,
+            "target_energy_covered": target_energy_covered,
+            "signal_energy_covered": signal_energy_covered,
+            "energy_threshold": self.config.energy_threshold,
+            "target_dct_norm": tgt_norm,
+            "signal_dct_norm": sig_norm,
         }
+
+        if logger.isEnabledFor(logging.INFO):
+            logger.info(
+                (
+                    "CurveObjective DCT diag: k=%d thr=%.3f "
+                    "loss=%.6g target_cov=%.4f signal_cov=%.4f "
+                    "target_norm=%.4g signal_norm=%.4g"
+                ),
+                k,
+                self.config.energy_threshold,
+                loss,
+                target_energy_covered,
+                signal_energy_covered,
+                tgt_norm,
+                sig_norm,
+            )
         return loss, diag
+
+    @staticmethod
+    def _select_dct_components(coeffs: np.ndarray, threshold: float) -> Tuple[int, float]:
+        """Pick minimal number of DCT coefficients to reach energy threshold."""
+        c = np.asarray(coeffs, dtype=np.float64).ravel()
+        energy = np.cumsum(c ** 2)
+        total = float(energy[-1]) if energy.size else 0.0
+        if total <= 0.0 or not np.isfinite(total):
+            return 1, 0.0
+        thr = min(max(float(threshold), 0.0), 1.0)
+        if thr >= 1.0:
+            return c.size, 1.0
+        idx = int(np.searchsorted(energy / total, thr, side="left")) + 1
+        k = min(max(1, idx), c.size)
+        frac = float(energy[k - 1] / total)
+        return k, frac
+
+    @staticmethod
+    def _fractional_energy(coeffs: np.ndarray, k: int) -> float:
+        """Compute cumulative energy fraction using the first k coefficients."""
+        c = np.asarray(coeffs, dtype=np.float64).ravel()
+        if c.size == 0:
+            return 0.0
+        k = max(1, min(int(k), c.size))
+        total = float(np.sum(c ** 2))
+        if total <= 0.0 or not np.isfinite(total):
+            return 0.0
+        partial = float(np.sum(c[:k] ** 2))
+        return partial / total
 
 def create_objective_from_csv(target_csv_path: str | Path,
                               M: Optional[int] = None,
