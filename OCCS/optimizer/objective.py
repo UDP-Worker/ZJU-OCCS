@@ -56,7 +56,7 @@ class ObjectiveConfig:
     huber_kappa: float = 0.8
     weights: Optional[np.ndarray] = None
     fit_gain_bias: bool = False
-    energy_threshold: float = 1.0
+    energy_threshold: float = 0.95
 
 logger = logging.getLogger(__name__)
 if not logger.handlers:
@@ -189,11 +189,14 @@ class CurveObjective:
         }
 
         if logger.isEnabledFor(logging.INFO):
+            tgt_str = np.array2string(target_coef, precision=6, floatmode="maxprec_equal")
+            sig_str = np.array2string(signal_coef, precision=6, floatmode="maxprec_equal")
             logger.info(
                 (
                     "CurveObjective DCT diag: k=%d thr=%.3f "
                     "loss=%.6g target_cov=%.4f signal_cov=%.4f "
-                    "target_norm=%.4g signal_norm=%.4g"
+                    "target_norm=%.4g signal_norm=%.4g\n"
+                    "target_dct=%s\nsignal_dct=%s"
                 ),
                 k,
                 self.config.energy_threshold,
@@ -202,6 +205,8 @@ class CurveObjective:
                 signal_energy_covered,
                 tgt_norm,
                 sig_norm,
+                tgt_str,
+                sig_str,
             )
         return loss, diag
 
